@@ -1,0 +1,65 @@
+name: nazzelha
+description: A modern Flutter desktop application for downloading videos from YouTube and Facebook.
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  
+  provider: ^6.1.5+1
+  window_manager: ^0.5.2
+  file_picker: ^11.0.3
+  path_provider: ^2.1.6
+  google_fonts: ^6.3.3
+  logger: ^2.7.0
+  shared_preferences: ^2.5.5
+  http: ^1.6.0
+  open_file: ^3.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  # Generate the Nazzelha launcher icon for Android (incl. adaptive icons) and
+  # Windows from the single source image assets/logo/nazzelha.png.
+  flutter_launcher_icons: ^0.14.4
+  # Generate the native Android splash screen from the same Nazzelha logo.
+  # Pinned to 2.4.7: 2.4.8 requires meta ^1.18.0 which conflicts with the
+  # meta 1.17.0 pin carried by flutter_test in the current Flutter SDK.
+  flutter_native_splash: 2.4.7
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo/nazzelha.png
+    # NOTE: assets/logo/nazzelha_splash.png is a 480x480 build-time input for
+    # flutter_native_splash generation only (same logo design, resized) and is
+    # intentionally NOT bundled as a Flutter asset to avoid duplicate assets.
+
+# Native splash screen configuration (same Nazzelha logo used for the app icon).
+# Run `dart run flutter_native_splash:create` after changing these values.
+#
+# NOTE: FNS 2.4.7 renders the Android (pre-12) splash image at
+# source_width/4 dp. assets/logo/nazzelha_splash.png is a 480x480 resize of
+# the original (same design) so the launch logo renders at 120dp (~73dp logo),
+# matching the in-app Flutter splash screen size without any cropping on
+# smaller phones. The full-resolution original is used for the Android 12+
+# splash so the 240dp system splash icon stays crisp.
+flutter_native_splash:
+  color: "#FFFFFF"
+  color_dark: "#0F172A"
+  image: assets/logo/nazzelha_splash.png
+  android: true
+  ios: false
+  web: false
+  android_12:
+    color: "#FFFFFF"
+    color_dark: "#0F172A"
+    image: assets/logo/nazzelha.png
