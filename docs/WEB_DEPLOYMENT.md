@@ -3,9 +3,13 @@
 The intended public URL is `https://nazzelha.mohamed-fooda-mtf.workers.dev/`.
 This is the `nazzelha` Worker only; the separate `azkar-sadaqa` project is untouched.
 
-Cloudflare serves the Flutter web assets and streams `/api/*` to the Render
-Docker service. The Worker does not run Python or FFmpeg. `API_ORIGIN` is a
-Worker secret containing the Render service's HTTPS origin. It is not a user
+The web client supports a stateless Vercel backend and an optional Docker
+backend. [Vercel deployment](VERCEL.md) is the no-card alternative being prepared
+after Render returned HTTP 402 and Northflank login failed on this account.
+
+Cloudflare serves Flutter web assets and can stream `/api/*` to the configured
+HTTPS backend. The Worker does not run Python or FFmpeg. `API_ORIGIN` is a
+Worker secret containing the backend's HTTPS origin. It is not a user
 credential. Secrets persist across GitHub-triggered deployments.
 
 `npx wrangler deploy` runs `tool/build_web.mjs`, which uses Flutter 3.47.7 and
@@ -14,6 +18,10 @@ installed SDK, or `NAZZELHA_SKIP_WEB_BUILD=1` after building the matching web as
 The repository's existing Cloudflare GitHub connection can use its original
 deploy command, `npx wrangler deploy`.
 
+## Optional Docker backend
+
+The following applies to the Docker API, not Vercel. Render creation on this
+account currently requires payment verification; no Render service was created.
 Deploy the Dockerfile as one Render **free** web service, with health path
 `/health`. Do not create a database, persistent disk, paid instance, or paid
 Cloudflare Container. The checked-in `render.yaml` describes the service; if
@@ -24,7 +32,7 @@ Set `NAZZELHA_SITE_ORIGIN` to the exact public site origin. Set
 `NAZZELHA_SESSION_SECRET` to a random private value through Render's environment
 configuration. Never commit this value or a platform login/cookie file.
 
-## Visitor downloads
+## Docker API visitor downloads
 
 - Each anonymous visitor gets a signed HttpOnly session cookie. Jobs, cancellation,
   temporary files and ZIP creation are scoped to that visitor.

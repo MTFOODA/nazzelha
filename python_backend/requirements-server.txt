@@ -1,0 +1,7 @@
+# Tested public-server dependencies. System FFmpeg is installed by the Dockerfile.
+yt-dlp[default]==2026.10.26
+yt-dlp-ejs==0.8.0
+curl-cffi==0.16.0
+fastapi==0.162.0
+starlette==1.6.0
+uvicorn==0.54.0

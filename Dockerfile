@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certi
     && rm -rf /var/lib/apt/lists/*
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 WORKDIR /app
-COPY python_backend/requirements.txt ./requirements.txt
+COPY python_backend/requirements-server.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY python_backend/*.py ./
 RUN useradd --create-home --uid 10001 nazzelha

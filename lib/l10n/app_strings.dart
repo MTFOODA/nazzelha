@@ -72,6 +72,12 @@ class AppStrings {
   }
 
   static const _labels = <String, String>{
+    'The free web edition supports files up to 96 MB. Choose a lower quality or use the app.':
+        'نسخة الويب المجانية تدعم الملفات حتى ٩٦ ميجابايت. اختر جودة أقل أو استخدم التطبيق.',
+    'The free web edition allows about 4 minutes to prepare a video. Try a lower quality or use the app.':
+        'نسخة الويب المجانية تتيح حوالي ٤ دقائق لتجهيز الفيديو. اختر جودة أقل أو استخدم التطبيق.',
+    'Please save these videos individually. The browser ZIP limit is 128 MB.':
+        'احفظ الفيديوهات منفردة. الحد الأقصى لملف ZIP في المتصفح هو ١٢٨ ميجابايت.',
     'The free download service is waking up. Please try again shortly.':
         'خدمة التحميل المجانية تبدأ التشغيل الآن. حاول مجددًا بعد قليل.',
     'The free service is busy. Please try again shortly.':

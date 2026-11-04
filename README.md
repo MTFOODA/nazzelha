@@ -122,3 +122,5 @@ Brand exports are derived from `assets/logo/nazzelha-v2.png`. Run `dart run tool
 The header information icon opens Mohamed Fooda's developer page, GitHub and LinkedIn links, and edition downloads. Android APK and portable Windows ZIP assets are hosted on [GitHub Releases](https://github.com/MTFOODA/nazzelha/releases/latest). iPhone/iPad opens the web edition.
 
 See [deployment and free-hosting limits](docs/WEB_DEPLOYMENT.md) and [release build instructions](docs/RELEASES.md).
+
+The [Vercel Hobby path](docs/VERCEL.md) streams each prepared file into the visitor's browser and creates playlist ZIPs there. It supports Python without assuming persistent function-local storage, with explicit per-video, browser-memory and hosting limits.

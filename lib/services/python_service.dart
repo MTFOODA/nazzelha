@@ -83,6 +83,10 @@ class PythonService {
   bool _commandBusy = false;
   bool _downloadBusy = false;
   bool _nativePlaylistBusy = false;
+  bool _browserTransfers = false;
+  bool get browserTransfers => _browserTransfers;
+  http.Client? _activeWebClient;
+  bool _webCancelled = false;
   String? _downloadDirectory;
   Future<void>? _restartInProgress;
   String? _playlistFolder;
@@ -119,6 +123,10 @@ class PythonService {
             .timeout(const Duration(seconds: 5));
         _isInitialized = response.statusCode == 200 &&
             jsonDecode(response.body)['ready'] == true;
+        if (_isInitialized) {
+          _browserTransfers =
+              jsonDecode(response.body)['transfer'] == 'browser';
+        }
       } catch (_) {
         _isInitialized = false;
       }
@@ -460,6 +468,7 @@ class PythonService {
     if (_restartInProgress != null) await _restartInProgress;
     if (isBusy) throw StateError('Another operation is running. Please wait.');
     _downloadBusy = true;
+    _webCancelled = false;
     lastDownloadResult = null;
     try {
       if (kIsWeb && !_isInitialized) await _connectWebBackend();
@@ -469,6 +478,8 @@ class PythonService {
 
       if (kIsWeb) {
         final client = http.Client();
+        _activeWebClient = client;
+        BrowserFileTransfer? transfer;
         try {
           final request =
               http.Request('POST', Uri.parse('$_httpBackendUrl/download'))
@@ -491,13 +502,26 @@ class PythonService {
               .transform(utf8.decoder)
               .transform(const LineSplitter())) {
             final payload = jsonDecode(line) as Map<String, dynamic>;
-            if (isProgressPayload(payload)) {
+            if (payload['event'] == 'file_start') {
+              transfer?.dispose();
+              transfer = BrowserFileTransfer(payload['filename'].toString(),
+                  (payload['size'] as num).toInt());
+            } else if (payload['event'] == 'file_chunk') {
+              if (transfer == null) throw StateError('Invalid media transfer.');
+              transfer.addChunk(base64Decode(payload['data'] as String));
+            } else if (isProgressPayload(payload)) {
               yield DownloadProgress.fromJson(payload);
             } else if (isTerminalResponse(payload)) {
               if (payload['cancelled'] == true) {
                 throw DownloadCancelledException('Download cancelled');
               }
               if (payload['success'] != true) throw Exception(payload['error']);
+              if (payload['transfer'] == 'browser') {
+                if (transfer == null) {
+                  throw StateError('Invalid media transfer.');
+                }
+                payload['file'] = transfer.finish();
+              }
               lastDownloadResult = payload;
               completed = true;
               yield DownloadProgress(
@@ -512,6 +536,8 @@ class PythonService {
             throw Exception('Connection to the download backend was lost.');
           }
         } finally {
+          transfer?.dispose();
+          _activeWebClient = null;
           client.close();
         }
         return;
@@ -751,6 +777,9 @@ class PythonService {
         throw Exception(payload['error'] ?? 'Download failed');
       }
     } catch (e, st) {
+      if (kIsWeb && _webCancelled) {
+        throw DownloadCancelledException('Download cancelled');
+      }
       logger.e('Download error: ${e.toString()}');
       logger.e('Download stack trace: $st');
       rethrow;
@@ -832,6 +861,16 @@ class PythonService {
       String platform = 'youtube',
       List<String>? files}) async {
     if (isPublicWeb) {
+      if (file?.startsWith('blob:') == true) {
+        if (!hasBrowserFile(file!)) throw WebFileExpiredException();
+        saveBrowserFile(Uri.parse(file));
+        return;
+      }
+      if (file == null && _browserTransfers) {
+        await saveBrowserArchive(
+            files ?? [], DownloadPaths.sanitizeFilename(folder ?? 'Playlist'));
+        return;
+      }
       if (file != null) {
         final uri = _publicFileUri(file);
         // Check expiration before asking the browser to save the attachment.
@@ -937,6 +976,8 @@ class PythonService {
         if (response.statusCode == 200 &&
             jsonDecode(response.body)['ready'] == true) {
           _isInitialized = true;
+          _browserTransfers =
+              jsonDecode(response.body)['transfer'] == 'browser';
           lastInitError = null;
           return;
         }
@@ -1124,6 +1165,11 @@ class PythonService {
 
   /// Ask the native foreground service to cancel the active download.
   Future<void> cancelDownload() async {
+    if (kIsWeb && _downloadBusy && _browserTransfers) {
+      _webCancelled = true;
+      _activeWebClient?.close();
+      return;
+    }
     if (kIsWeb && _downloadBusy) {
       await http
           .post(Uri.parse('$_httpBackendUrl/cancel'),

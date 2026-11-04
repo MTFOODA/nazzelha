@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../models/download_task.dart';
 import '../services/queue_controller.dart';
+import '../services/python_service.dart';
 import '../theme/colors.dart';
 import '../widgets/download_task_card.dart';
 import '../widgets/app_settings_actions.dart';
@@ -110,6 +111,14 @@ class _NazzelhaScreenState extends State<NazzelhaScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                if (context.read<PythonService>().browserTransfers)
+                  Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      child: Text(
+                          strings.isAr
+                              ? 'الويب المجاني: حتى ٩٦ ميجابايت للفيديو وحوالي ٤ دقائق لتجهيزه. احفظ الملفات قبل تحديث الصفحة أو إغلاقها.'
+                              : 'Free web: up to 96 MB per video and about 4 minutes to prepare it. Save files before reloading or closing this tab.',
+                          style: Theme.of(context).textTheme.bodySmall)),
                 _addButton(isDark, strings),
                 Expanded(
                   child: controller.tasks.isEmpty

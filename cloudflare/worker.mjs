@@ -11,7 +11,8 @@ export default {
     if (origin && origin !== url.origin) return new Response('Forbidden', { status: 403 });
     if (!['GET', 'HEAD', 'POST'].includes(request.method)) return new Response('Method not allowed', { status: 405 });
     const target = new URL(env.API_ORIGIN);
-    if (target.protocol !== 'https:' || !target.hostname.endsWith('.onrender.com')) {
+    if (target.protocol !== 'https:' || target.username || target.password ||
+        !['.onrender.com', '.code.run', '.vercel.app'].some(suffix => target.hostname.endsWith(suffix))) {
       return Response.json({ error: 'The download service is unavailable.' }, { status: 503 });
     }
     target.pathname = '/' + path;

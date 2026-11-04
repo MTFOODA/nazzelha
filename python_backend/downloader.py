@@ -869,7 +869,7 @@ class VideoDownloader:
             # enable Node.js when it is available (Windows-only, matching the
             # desktop backend environment).
             bundled_node = Path(sys.executable).parent / 'tools' / 'node.exe'
-            node = str(bundled_node) if bundled_node.is_file() else shutil.which('node')
+            node = os.environ.get('NAZZELHA_NODE_PATH') or (str(bundled_node) if bundled_node.is_file() else shutil.which('node'))
             if node:
                 base_opts["js_runtimes"] = {"node": {"path": node}}
 

@@ -35,6 +35,8 @@ migrate_working_dir/
 .cache/
 node_modules/
 .wrangler/
+.vercel/
+python_backend/bin/
 .venv/
 venv/
 __pycache__/
@@ -135,3 +137,4 @@ coverage/
 
 # Exceptions to above rules.
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
+

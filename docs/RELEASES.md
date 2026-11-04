@@ -12,7 +12,12 @@ The iPhone/iPad edition button opens the web app with Safari Home Screen guidanc
 
 ## Android
 
-Run `python tool/prepare_release_signing.py` once, then `flutter build apk --release`.
+Run `python tool/prepare_release_signing.py` once, then
+`python tool/build_android_release.py` with Flutter on PATH or `FLUTTER_BIN` set.
+The helper prepares release configuration, removes only dev-dependency entries
+from the generated Java registrant when the installed SDK leaves them there,
+then runs Gradle and copies the APK to `build/deliveries/`. Test plugins remain
+excluded from release builds.
 The key and passwords are generated in ignored `.release/`. **Back up both the
 keystore and signing.properties privately**: future Android updates require the
 same key. They are never uploaded with source or releases. Release builds fail

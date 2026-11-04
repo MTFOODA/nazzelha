@@ -1,0 +1,3 @@
+-r python_backend/requirements-server.txt
+# Portable Linux FFmpeg; Vercel's runtime does not install apt packages.
+imageio-ffmpeg==0.6.0

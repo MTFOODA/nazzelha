@@ -217,8 +217,13 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                               Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
                                   child: Text(
-                                      t('Save ready videos individually or as a ZIP. Temporary files expire after one hour. The free service may take a minute to wake up. Keep this tab open while preparing a playlist.',
-                                          'احفظ الفيديوهات الجاهزة منفردة أو كملف ZIP. الملفات المؤقتة تنتهي بعد ساعة. الخدمة المجانية قد تحتاج دقيقة لتبدأ. اترك الصفحة مفتوحة أثناء تجهيز البلايليست.'),
+                                      context
+                                              .read<PythonService>()
+                                              .browserTransfers
+                                          ? t('Save ready videos before closing or reloading this tab. Free web limits: 96 MB per video, about 4 minutes to prepare each video, 128 MB per ZIP and 256 MB of temporary browser files. Keep this tab open while preparing a playlist.',
+                                              'احفظ الفيديوهات قبل إغلاق الصفحة أو تحديثها. حدود الويب المجاني: ٩٦ ميجابايت للفيديو، وحوالي ٤ دقائق لتجهيز كل فيديو، و١٢٨ ميجابايت لملف ZIP، و٢٥٦ ميجابايت للملفات المؤقتة في المتصفح. اترك الصفحة مفتوحة أثناء تجهيز البلايليست.')
+                                          : t('Save ready videos individually or as a ZIP. Temporary files expire after one hour. The free service may take a minute to wake up. Keep this tab open while preparing a playlist.',
+                                              'احفظ الفيديوهات الجاهزة منفردة أو كملف ZIP. الملفات المؤقتة تنتهي بعد ساعة. الخدمة المجانية قد تحتاج دقيقة لتبدأ. اترك الصفحة مفتوحة أثناء تجهيز البلايليست.'),
                                       style: theme.textTheme.bodySmall)),
                             if ((c.job!['unavailable'] as num? ?? 0) > 0)
                               Text(t(
