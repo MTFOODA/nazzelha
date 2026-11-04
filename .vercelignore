@@ -1,5 +1,12 @@
 .git
+.dart_tool
+.idea
+.vscode
+.flutter-plugins
+.flutter-plugins-dependencies
+.gradle
 .venv
+venv
 .release
 .cache
 .wrangler
@@ -13,7 +20,12 @@ windows
 integration_test
 test
 test_driver
+coverage
+migrate_working_dir
 _*
 *.log
+**/__pycache__
+*.pyc
 python_backend/test_*.py
+python_backend/_*.py
 python_backend/bin

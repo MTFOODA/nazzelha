@@ -3,7 +3,7 @@
   "framework": null,
   "buildCommand": "node tool/build_web.mjs && python3 tool/prepare_vercel_runtime.py",
   "outputDirectory": "build/web",
-  "functions": { "api/index.py": { "maxDuration": 300, "includeFiles": "python_backend/**", "excludeFiles": "{.env*,.cache/**,.venv/**,.release/**,node_modules/**,build/**,assets/**,lib/**,test/**,integration_test/**,tool/**,android/**,windows/**,docs/**,python_backend/test_*.py}" } },
+  "functions": { "api/index.py": { "maxDuration": 300, "includeFiles": "python_backend/**", "excludeFiles": "{.env*,.dart_tool/**,.cache/**,.venv/**,.release/**,node_modules/**,build/**,assets/**,lib/**,test/**,integration_test/**,tool/**,android/**,windows/**,docs/**,python_backend/test_*.py,python_backend/_*.py}" } },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api?_nazzelha_route=:path*" },
     { "source": "/((?!api).*)", "destination": "/index.html" }
