@@ -7,6 +7,7 @@ class LocaleProvider extends ChangeNotifier {
 
   Locale _locale = const Locale('en');
   SharedPreferences? _prefs;
+  bool _userChanged = false;
 
   Locale get locale => _locale;
   bool get isArabic => _locale.languageCode == 'ar';
@@ -18,17 +19,18 @@ class LocaleProvider extends ChangeNotifier {
   Future<void> _load() async {
     _prefs = await SharedPreferences.getInstance();
     final code = _prefs?.getString(_prefsKey);
-    if (code != null && (code == 'ar' || code == 'en')) {
+    if (!_userChanged && code != null && (code == 'ar' || code == 'en')) {
       _locale = Locale(code);
     }
     notifyListeners();
   }
 
   Future<void> toggle() async {
-    _locale = _locale.languageCode == 'ar'
-        ? const Locale('en')
-        : const Locale('ar');
-    await _prefs?.setString(_prefsKey, _locale.languageCode);
+    _userChanged = true;
+    _locale =
+        _locale.languageCode == 'ar' ? const Locale('en') : const Locale('ar');
+    _prefs ??= await SharedPreferences.getInstance();
+    await _prefs!.setString(_prefsKey, _locale.languageCode);
     notifyListeners();
   }
 }

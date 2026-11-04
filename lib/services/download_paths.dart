@@ -6,7 +6,7 @@ import 'dart:io';
 ///  * the per-platform download subfolder under the existing Nazzelha root,
 ///  * output-filename sanitization / extension / traversal protection.
 ///
-/// Both the main downloader and Nazzelha Sawa resolve their destination folder
+/// Both the main downloader and Nazzelha resolve their destination folder
 /// through this class so every download entry point produces the same
 /// `Nazzelha/<Platform>/<file>` layout.
 class DownloadPaths {
@@ -26,7 +26,7 @@ class DownloadPaths {
     'tiktok': 'TikTok',
   };
 
-  /// Sentinel quality used by Nazzelha Sawa to mean "best available quality".
+  /// Sentinel quality used by Nazzelha to mean "best available quality".
   /// The existing yt-dlp format selector caps by `height<=quality`, so a very
   /// high cap lets `bestvideo+bestaudio/best` select the best available stream
   /// without hardcoding any resolution/codec/format id.
@@ -42,29 +42,31 @@ class DownloadPaths {
 
   /// Validate that [url] looks usable.
   static bool isUsableUrl(String url) {
-    final trimmed = url.trim();
-    if (trimmed.isEmpty) return false;
-    final lower = trimmed.toLowerCase();
-    return lower.startsWith('http://') || lower.startsWith('https://');
+    final uri = Uri.tryParse(url.trim());
+    return uri != null &&
+        (uri.scheme == 'https' || uri.scheme == 'http') &&
+        uri.host.isNotEmpty &&
+        uri.userInfo.isEmpty;
   }
 
   /// True when [url] clearly belongs to [platform].
   static bool urlMatchesPlatform(String url, String platform) {
-    final lower = url.toLowerCase();
-    switch (platform.toLowerCase()) {
-      case 'youtube':
-        return lower.contains('youtube.com') || lower.contains('youtu.be');
-      case 'facebook':
-        return lower.contains('facebook.com') || lower.contains('fb.watch');
-      case 'instagram':
-        return lower.contains('instagram.com') || lower.contains('instagr.am');
-      case 'tiktok':
-        return lower.contains('tiktok.com') ||
-            lower.contains('vt.tiktok.com') ||
-            lower.contains('vm.tiktok.com');
-      default:
-        return true;
-    }
+    if (!isUsableUrl(url)) return false;
+    final host = Uri.parse(url.trim()).host.toLowerCase();
+    const hosts = {
+      'youtube': ['youtube.com', 'youtu.be'],
+      'facebook': ['facebook.com', 'fb.watch'],
+      'instagram': ['instagram.com', 'instagr.am'],
+      'tiktok': ['tiktok.com']
+    };
+    return (hosts[platform.toLowerCase()] ?? <String>[])
+        .any((domain) => host == domain || host.endsWith('.$domain'));
+  }
+
+  static bool isYoutubePlaylist(String url) {
+    if (!urlMatchesPlatform(url, 'youtube')) return false;
+    final id = Uri.parse(url.trim()).queryParameters['list'] ?? '';
+    return RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(id);
   }
 
   /// Best-effort detection of the platform a URL belongs to, or null when it
@@ -115,9 +117,28 @@ class DownloadPaths {
     // Windows reserved device names (with or without extension).
     final base = name.split('.').first.toUpperCase();
     const reserved = {
-      'CON', 'PRN', 'AUX', 'NUL',
-      'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
-      'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
+      'CON',
+      'PRN',
+      'AUX',
+      'NUL',
+      'COM1',
+      'COM2',
+      'COM3',
+      'COM4',
+      'COM5',
+      'COM6',
+      'COM7',
+      'COM8',
+      'COM9',
+      'LPT1',
+      'LPT2',
+      'LPT3',
+      'LPT4',
+      'LPT5',
+      'LPT6',
+      'LPT7',
+      'LPT8',
+      'LPT9',
     };
     if (reserved.contains(base)) {
       name = '_$name';
@@ -148,8 +169,17 @@ class DownloadPaths {
     if (lower.endsWith(desired)) return name;
 
     const mediaExts = [
-      '.mp4', '.m4v', '.webm', '.mkv', '.mov',
-      '.mp3', '.m4a', '.opus', '.wav', '.aac', '.flac',
+      '.mp4',
+      '.m4v',
+      '.webm',
+      '.mkv',
+      '.mov',
+      '.mp3',
+      '.m4a',
+      '.opus',
+      '.wav',
+      '.aac',
+      '.flac',
     ];
     for (final ext in mediaExts) {
       if (lower.endsWith(ext)) {

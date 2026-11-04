@@ -1,3 +1,4 @@
+import 'runtime_platform.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -10,7 +11,7 @@ import '../models/download_task.dart';
 import 'download_paths.dart';
 import 'python_service.dart';
 
-/// Sequential download queue engine for Nazzelha Sawa.
+/// Sequential download queue engine for Nazzelha.
 ///
 /// The controller is the single source of truth for queue *configuration* and
 /// drives strict one-at-a-time execution. Each download itself is owned by the
@@ -60,6 +61,17 @@ class NazzelhaQueueController extends ChangeNotifier {
   /// Public lookup by stable id (used by the UI to localize validation errors).
   DownloadTask? taskById(String id) => _byId(id);
 
+  void expireWebFile(String id) {
+    if (!_python.isPublicWeb) return;
+    final task = _byId(id);
+    if (task == null || task.status != TaskStatus.completed) return;
+    task.status = TaskStatus.paused;
+    task.outputFile = null;
+    task.error = 'This temporary file expired. Prepare the video again.';
+    _persist();
+    notifyListeners();
+  }
+
   bool canEdit(DownloadTask task) {
     switch (task.status) {
       case TaskStatus.pending:
@@ -87,7 +99,8 @@ class NazzelhaQueueController extends ChangeNotifier {
         final list = jsonDecode(raw) as List;
         _tasks.clear();
         for (final e in list) {
-          final task = DownloadTask.fromJson(Map<String, dynamic>.from(e as Map));
+          final task =
+              DownloadTask.fromJson(Map<String, dynamic>.from(e as Map));
           if (task.id.isEmpty) continue;
           // Conservative recovery: a task that was mid-flight when the process
           // died must never be silently marked completed/failed.
@@ -111,7 +124,7 @@ class NazzelhaQueueController extends ChangeNotifier {
     // Cross-check the native foreground service's authoritative active-task
     // state. If the service still owns an in-flight task, surface it as paused
     // so the user must explicitly Resume it.
-    if (Platform.isAndroid) {
+    if (RuntimePlatform.isAndroid) {
       try {
         final active = await _python.getActiveDownload();
         final phase = active?['phase']?.toString();
@@ -154,7 +167,7 @@ class NazzelhaQueueController extends ChangeNotifier {
 
   /// Persist only the native queue snapshot (structural changes only).
   void _persistSnapshot() {
-    if (_disposed || !Platform.isAndroid) return;
+    if (_disposed || !RuntimePlatform.isAndroid) return;
     unawaited(_python.saveQueueSnapshot(_serializeTasks()));
   }
 
@@ -197,10 +210,72 @@ class NazzelhaQueueController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateUrl(String id, String value) => _updateField(id, (t) => t.url = value);
-  void updatePlatform(String id, String value) =>
-      _updateField(id, (t) => t.platform = value);
-  void updateMode(String id, String value) => _updateField(id, (t) => t.mode = value);
+  void _resetQualities(DownloadTask t) {
+    t.quality = DownloadPaths.bestQuality;
+    t.availableQualities = [];
+    t.qualityError = null;
+  }
+
+  void updateUrl(String id, String value) => _updateField(id, (t) {
+        if (t.url != value) _resetQualities(t);
+        t.url = value;
+      });
+  void updatePlatform(String id, String value) => _updateField(id, (t) {
+        if (t.platform != value) _resetQualities(t);
+        t.platform = value;
+      });
+  void updateQuality(String id, int value) => _updateField(id, (t) {
+        if (value == DownloadPaths.bestQuality ||
+            t.availableQualities.contains(value)) {
+          t.quality = value;
+        }
+      });
+
+  Future<void> fetchQualities(String id) async {
+    final task = _byId(id);
+    if (task == null || !canEdit(task) || task.loadingQualities) return;
+    final validation = _validate(task);
+    if (validation != null) {
+      task.errorCode = validation;
+      notifyListeners();
+      return;
+    }
+    if (_executing || _python.isBusy || _tasks.any((t) => t.loadingQualities)) {
+      task.qualityError = 'Another operation is running. Please wait.';
+      notifyListeners();
+      return;
+    }
+    final url = task.url;
+    final platform = task.platform;
+    task.loadingQualities = true;
+    task.qualityError = null;
+    notifyListeners();
+    try {
+      final values = await _python.getAvailableQualities(url.trim(), platform);
+      if (_byId(id) == task &&
+          task.url == url &&
+          task.platform == platform &&
+          canEdit(task)) {
+        task.availableQualities = values.where((q) => q > 0).toSet().toList()
+          ..sort();
+        if (task.quality != DownloadPaths.bestQuality &&
+            !values.contains(task.quality)) {
+          task.quality = DownloadPaths.bestQuality;
+        }
+      }
+    } catch (e) {
+      if (_byId(id) == task && task.url == url && task.platform == platform) {
+        task.qualityError = e.toString().replaceFirst('Exception: ', '');
+      }
+    } finally {
+      task.loadingQualities = false;
+      _persist();
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  void updateMode(String id, String value) =>
+      _updateField(id, (t) => t.mode = value);
   void updateFilename(String id, String value) =>
       _updateField(id, (t) => t.filename = value);
 
@@ -229,6 +304,8 @@ class NazzelhaQueueController extends ChangeNotifier {
     if (task == null) return 'Task not found';
     if (task.status.isActive) return null; // already running
     if (task.status == TaskStatus.completed) return null; // never restart
+    if (_tasks.any((t) => t.loadingQualities)) return 'busy';
+    if (_python.isBusy && !_executing) return 'busy';
 
     final error = _validate(task);
     if (error != null) {
@@ -258,6 +335,8 @@ class NazzelhaQueueController extends ChangeNotifier {
     if (task == null) return 'Task not found';
     if (task.status == TaskStatus.completed) return null;
     if (task.status.isActive) return null;
+    if (_tasks.any((t) => t.loadingQualities)) return 'busy';
+    if (_python.isBusy && !_executing) return 'busy';
 
     final error = _validate(task);
     if (error != null) {
@@ -352,7 +431,7 @@ class NazzelhaQueueController extends ChangeNotifier {
 
   String? _resolveFilename(DownloadTask task, String outputDir) {
     if (task.filename.trim().isEmpty) return null;
-    if (Platform.isAndroid) {
+    if (kIsWeb || RuntimePlatform.isAndroid) {
       final s = DownloadPaths.sanitizeFilename(task.filename);
       return s.isEmpty ? null : DownloadPaths.ensureExtension(s, task.mode);
     }
@@ -365,9 +444,6 @@ class NazzelhaQueueController extends ChangeNotifier {
   }
 
   Future<void> _executeTask(DownloadTask task) async {
-    final outputDir = await _python.getPlatformDownloadDirectory(task.platform);
-    final resolvedName = _resolveFilename(task, outputDir);
-
     final current = _byId(task.id);
     if (current == null) return;
     current.status = TaskStatus.downloading;
@@ -379,10 +455,13 @@ class NazzelhaQueueController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final outputDir =
+          await _python.getPlatformDownloadDirectory(task.platform);
+      final resolvedName = _resolveFilename(task, outputDir);
       await for (final progress in _python.downloadVideo(
         task.url,
         task.platform,
-        DownloadPaths.bestQuality,
+        task.quality,
         outputDir,
         mode: task.mode,
         filename: resolvedName,
@@ -409,8 +488,12 @@ class NazzelhaQueueController extends ChangeNotifier {
       final done = _byId(task.id);
       if (done == null) return;
       var outputFile = _python.lastDownloadResult?['file']?.toString();
-      if (!Platform.isAndroid && resolvedName != null && outputFile != null) {
-        outputFile = await _applyDesktopFilename(outputFile, outputDir, resolvedName);
+      if (!kIsWeb &&
+          !RuntimePlatform.isAndroid &&
+          resolvedName != null &&
+          outputFile != null) {
+        outputFile =
+            await _applyDesktopFilename(outputFile, outputDir, resolvedName);
       }
       done.status = TaskStatus.completed;
       done.progress = 100;
@@ -445,8 +528,21 @@ class NazzelhaQueueController extends ChangeNotifier {
   Future<String?> _applyDesktopFilename(
       String srcPath, String outputDir, String name) async {
     final src = File(srcPath);
-    final targetPath = '$outputDir${Platform.pathSeparator}$name';
+    final actualExtension = srcPath.split('.').last;
+    if (name.contains('.') && actualExtension.isNotEmpty) {
+      name = '${name.substring(0, name.lastIndexOf('.'))}.$actualExtension';
+    }
+    var targetPath = '$outputDir${Platform.pathSeparator}$name';
     if (src.path == targetPath) return src.path;
+    final dot = name.lastIndexOf('.');
+    final stem = dot > 0 ? name.substring(0, dot) : name;
+    final extension = dot > 0 ? name.substring(dot) : '';
+    var counter = 1;
+    while (File(targetPath).existsSync()) {
+      targetPath =
+          '$outputDir${Platform.pathSeparator}$stem ($counter)$extension';
+      counter++;
+    }
     try {
       if (!src.existsSync()) return src.path;
       final renamed = src.renameSync(targetPath);

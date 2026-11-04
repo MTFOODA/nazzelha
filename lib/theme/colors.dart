@@ -18,11 +18,11 @@ class AppColors {
   static const Color warningLight = Color(0xFFF59E0B); // Amber
 
   // Dark theme colors
-  static const Color bgDark = Color(0xFF0F172A); // Very dark blue
-  static const Color surfaceDark = Color(0xFF1E293B); // Dark gray-blue
+  static const Color bgDark = Color(0xFF0A1120); // Very dark blue
+  static const Color surfaceDark = Color(0xFF152037); // Dark gray-blue
   static const Color textDark = Color(0xFFF1F5F9); // Light gray
-  static const Color textSecondaryDark = Color(0xFFA1AEC6); // Medium gray
-  static const Color borderDark = Color(0xFF334155); // Dark gray
+  static const Color textSecondaryDark = Color(0xFFAFBDD5); // Medium gray
+  static const Color borderDark = Color(0xFF2C3B55); // Dark gray
 
   static const Color errorDark = Color(0xFFFCA5A5); // Light red
   static const Color successDark = Color(0xFF6EE7B7); // Light green

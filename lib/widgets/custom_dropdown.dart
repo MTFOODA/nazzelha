@@ -6,6 +6,7 @@ class CustomDropdown<T> extends StatefulWidget {
   final List<T> items;
   final List<String> itemLabels;
   final Function(T) onChanged;
+  final bool enabled;
 
   const CustomDropdown({
     super.key,
@@ -13,6 +14,7 @@ class CustomDropdown<T> extends StatefulWidget {
     required this.items,
     required this.itemLabels,
     required this.onChanged,
+    this.enabled = true,
   });
 
   @override
@@ -49,6 +51,8 @@ class _CustomDropdownState<T> extends State<CustomDropdown<T>> {
         ),
       ),
       child: DropdownButton<T>(
+        dropdownColor: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
         value: _selectedValue,
         isExpanded: true,
         underline: const SizedBox(),
@@ -63,7 +67,7 @@ class _CustomDropdownState<T> extends State<CustomDropdown<T>> {
             ),
           ),
         ),
-        onChanged: (newValue) {
+        onChanged: !widget.enabled ? null : (newValue) {
           if (newValue != null) {
             setState(() {
               _selectedValue = newValue;

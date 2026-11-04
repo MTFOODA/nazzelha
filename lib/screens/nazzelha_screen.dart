@@ -6,18 +6,19 @@ import '../l10n/app_strings.dart';
 import '../models/download_task.dart';
 import '../services/queue_controller.dart';
 import '../theme/colors.dart';
-import '../theme/locale_provider.dart';
 import '../widgets/download_task_card.dart';
+import '../widgets/app_settings_actions.dart';
+import '../widgets/app_motion.dart';
 
-/// Nazzelha Sawa — build and run a sequential multi-link download queue.
-class NazzelhaSawaScreen extends StatefulWidget {
-  const NazzelhaSawaScreen({super.key});
+/// Nazzelha — build and run a sequential multi-link download queue.
+class NazzelhaScreen extends StatefulWidget {
+  const NazzelhaScreen({super.key});
 
   @override
-  State<NazzelhaSawaScreen> createState() => _NazzelhaSawaScreenState();
+  State<NazzelhaScreen> createState() => _NazzelhaScreenState();
 }
 
-class _NazzelhaSawaScreenState extends State<NazzelhaSawaScreen> {
+class _NazzelhaScreenState extends State<NazzelhaScreen> {
   bool _loaded = false;
 
   @override
@@ -90,25 +91,20 @@ class _NazzelhaSawaScreenState extends State<NazzelhaSawaScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final strings = AppStrings.of(context);
     final controller = context.watch<NazzelhaQueueController>();
-    final localeProvider = context.watch<LocaleProvider>();
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          strings.sawaTitle,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          strings.appTitle,
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600)
+              .copyWith(fontFamilyFallback: const ['Tajawal']),
         ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        backgroundColor:
+            isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
         foregroundColor: isDark ? AppColors.textDark : AppColors.textLight,
-        actions: [
-          IconButton(
-            tooltip: strings.languageToggle,
-            icon: const Icon(Icons.language),
-            onPressed: () => localeProvider.toggle(),
-          ),
-        ],
+        actions: const [AppSettingsActions(), SizedBox(width: 8)],
       ),
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
@@ -135,6 +131,10 @@ class _NazzelhaSawaScreenState extends State<NazzelhaSawaScreen> {
                                   controller.updateFilename(task.id, f),
                               onModeChanged: (m) =>
                                   controller.updateMode(task.id, m),
+                              onQualityChanged: (q) =>
+                                  controller.updateQuality(task.id, q),
+                              onFetchQualities: () =>
+                                  controller.fetchQualities(task.id),
                               onStart: () => _handleStart(task.id),
                               onResume: () => _handleResume(task.id),
                               onRemove: () => _handleRemove(task),
@@ -152,15 +152,10 @@ class _NazzelhaSawaScreenState extends State<NazzelhaSawaScreen> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: SizedBox(
         width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: () => context.read<NazzelhaQueueController>().addTask(),
-          icon: const Icon(Icons.add),
-          label: Text(
-            strings.add,
-            style:
-                GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600),
-          ),
-        ),
+        child: AppActionButton(
+            label: strings.add,
+            icon: Icons.add_rounded,
+            onPressed: () => context.read<NazzelhaQueueController>().addTask()),
       ),
     );
   }
@@ -186,7 +181,7 @@ class _NazzelhaSawaScreenState extends State<NazzelhaSawaScreen> {
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
                 color: isDark ? AppColors.textDark : AppColors.textLight,
-              ),
+              ).copyWith(fontFamilyFallback: const ['Tajawal']),
             ),
             const SizedBox(height: 8),
             Text(
@@ -197,7 +192,7 @@ class _NazzelhaSawaScreenState extends State<NazzelhaSawaScreen> {
                 color: isDark
                     ? AppColors.textSecondaryDark
                     : AppColors.textSecondaryLight,
-              ),
+              ).copyWith(fontFamilyFallback: const ['Tajawal']),
             ),
           ],
         ),

@@ -13,6 +13,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import List, Dict, Any, Callable, Optional
+from media_core import extraction_options, extract_media, final_filepath, valid_url, PublicMediaUnavailable
 
 try:
     import yt_dlp
@@ -99,6 +100,7 @@ _FORMAT_KEYWORDS = (
 )
 
 _NETWORK_KEYWORDS = (
+    'proxyerror', 'tunnel connection failed',
     'timed out', 'timeout', 'connectionreset', 'connection reset',
     'getaddrinfo failed', 'name or service not known',
     'temporary failure in name resolution', 'network is unreachable',
@@ -220,12 +222,10 @@ class VideoDownloader:
                     return {"success": False, "error": res["error"]}
                 info = res["info"]
             else:
-                with yt_dlp.YoutubeDL({
-                    "quiet": True,
-                    "no_warnings": True,
-                    "socket_timeout": 30
-                }) as ydl:
-                    info = ydl.extract_info(url, download=False)
+                opts = self._get_yt_dlp_opts(platform, 4320, Path('.'))
+                opts.pop('format', None)
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = extract_media(ydl, url, platform, download=False)
 
             available_heights = set()
 
@@ -235,6 +235,9 @@ class VideoDownloader:
                     available_heights.add(height)
 
             qualities = sorted(available_heights)
+            if not qualities and any(f.get('url') and f.get('vcodec') != 'none'
+                                     for f in info.get('formats', [])):
+                qualities = [4320]  # Best available when resolution is unknown.
 
             if not qualities:
                 return {
@@ -254,7 +257,7 @@ class VideoDownloader:
             return {
                 "success": False,
                 "error_code": code,
-                "error": _USER_MESSAGES[code],
+                "error": str(e) if isinstance(e, PublicMediaUnavailable) else _USER_MESSAGES[code],
                 "technical": error_msg[:300],
             }
         except Exception as e:
@@ -326,8 +329,8 @@ class VideoDownloader:
                 ydl_opts = self._get_yt_dlp_opts(platform, quality, output_dir, mode="audio")
                 ydl_opts["progress_hooks"] = [self._progress_hook] if self.progress_callback else []
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    filepath = str(Path(ydl.prepare_filename(info)).with_suffix(".mp3"))
+                    info = extract_media(ydl, url, platform, download=True)
+                    filepath = final_filepath(ydl, info, mode)
                     if not os.path.isfile(filepath) or os.path.getsize(filepath) <= 0:
                         raise RuntimeError("Audio extraction finished but the MP3 is missing or empty")
                     return {
@@ -356,8 +359,8 @@ class VideoDownloader:
                 }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                filepath = ydl.prepare_filename(info)
+                info = extract_media(ydl, url, platform, download=True)
+                filepath = final_filepath(ydl, info, mode)
 
                 return {
                     "success": True,
@@ -369,12 +372,14 @@ class VideoDownloader:
             # Can be either an extraction failure or a media-download failure;
             # classify_error() distinguishes them and phase="download" makes
             # bare HTTP statuses attribute to the media transfer.
+            if self._stop_download:
+                return {'success': False, 'cancelled': True, 'error': 'Download cancelled'}
             error_msg = str(e)
             code = classify_error(error_msg, phase="download")
             return {
                 "success": False,
                 "error_code": code,
-                "error": _USER_MESSAGES[code],
+                "error": str(e) if isinstance(e, PublicMediaUnavailable) else _USER_MESSAGES[code],
                 "technical": error_msg[:300],
             }
 
@@ -411,6 +416,8 @@ class VideoDownloader:
         Args:
             d: Progress dictionary from yt-dlp
         """
+        if self._stop_download:
+            raise yt_dlp.utils.DownloadError('Download cancelled')
         if self.progress_callback:
             if d['status'] == 'downloading':
                 percent_text = str(d.get('_percent_str', '0%')).strip().replace('%', '').strip()
@@ -442,13 +449,23 @@ class VideoDownloader:
         Raises:
             RuntimeError: If FFmpeg is not found
         """
-        import shutil
-        if not shutil.which("ffmpeg"):
+        if not VideoDownloader._ffmpeg_location():
             raise RuntimeError(
                 "FFmpeg is not installed. Please install FFmpeg from "
                 "https://ffmpeg.org/download.html or via package manager."
             )
         return True
+
+    @staticmethod
+    def _ffmpeg_location():
+        configured = os.environ.get('NAZZELHA_FFMPEG') or shutil.which('ffmpeg')
+        if configured:
+            return configured
+        try:
+            import imageio_ffmpeg
+            return imageio_ffmpeg.get_ffmpeg_exe()
+        except (ImportError, RuntimeError):
+            return None
 
     @staticmethod
     def get_downloads_directory() -> str:
@@ -636,6 +653,12 @@ class VideoDownloader:
                     "preferredcodec": "mp3",
                     "preferredquality": "192",
                 }]
+            ffmpeg = self._ffmpeg_location()
+            if ffmpeg:
+                opts['ffmpeg_location'] = ffmpeg
+            cookie = extraction_options('tiktok').get('cookiefile')
+            if cookie:
+                opts['cookiefile'] = cookie
             return opts
 
         # Attempt A: normal yt-dlp configuration.
@@ -657,7 +680,7 @@ class VideoDownloader:
         attempts.append(("app_api", app_api))
 
         # Attempt C: cookies from an installed Windows browser (if present).
-        browser = self._detect_browser()
+        browser = None if os.environ.get('NAZZELHA_PUBLIC_SERVER') == '1' else self._detect_browser()
         if browser is not None:
             try:
                 cookie_opts = base_opts()
@@ -687,6 +710,8 @@ class VideoDownloader:
         hard_deadline = None if download else time.monotonic() + 140
         deadline = None if download else time.monotonic() + 55
         for attempt_no, (name, opts) in enumerate(attempts, start=1):
+            if self._stop_download:
+                raise yt_dlp.utils.DownloadError('Download cancelled')
             if deadline is not None and attempt_no > 1 and time.monotonic() >= deadline:
                 print("[TikTok] Extraction time budget exhausted; stopping fallbacks",
                       file=sys.stderr)
@@ -843,8 +868,10 @@ class VideoDownloader:
             # default-enabled runtime but is rarely installed on Windows;
             # enable Node.js when it is available (Windows-only, matching the
             # desktop backend environment).
-            if os.name == "nt" and shutil.which("node"):
-                base_opts["js_runtimes"] = {"node": {}}
+            bundled_node = Path(sys.executable).parent / 'tools' / 'node.exe'
+            node = str(bundled_node) if bundled_node.is_file() else shutil.which('node')
+            if node:
+                base_opts["js_runtimes"] = {"node": {"path": node}}
 
         elif platform in ("facebook", "fb.watch"):
             base_opts.update({
@@ -875,6 +902,16 @@ class VideoDownloader:
                 "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             })
 
+        base_opts.update(extraction_options(platform))
+        limit = os.environ.get('NAZZELHA_MAX_FILE_BYTES')
+        if limit:
+            base_opts['max_filesize'] = int(limit)
+        ffmpeg = self._ffmpeg_location()
+        if ffmpeg:
+            base_opts['ffmpeg_location'] = ffmpeg
+        base_opts['outtmpl'] = str(output_dir / '%(title).120s [%(id)s].%(ext)s')
+        if quality >= 4320 and mode == 'video':
+            base_opts['format'] = 'bestvideo+bestaudio/best'
         return base_opts
 
 
@@ -889,25 +926,4 @@ def validate_url(url: str, platform: Optional[str] = None) -> bool:
     Returns:
         True if URL is valid
     """
-    url = url.strip()
-    
-    if not url:
-        return False
-
-    # Check if URL starts with http or https
-    if not url.lower().startswith(('http://', 'https://')):
-        return False
-
-    # Basic platform validation
-    if platform:
-        platform_lower = platform.lower()
-        if platform_lower in ("youtube", "youtu.be"):
-            return any(host in url.lower() for host in ['youtube.com', 'youtu.be'])
-        elif platform_lower in ("facebook", "fb.watch"):
-            return 'facebook.com' in url.lower() or 'fb.watch' in url.lower()
-        elif platform_lower in ("instagram", "instagr.am"):
-            return 'instagram.com' in url.lower() or 'instagr.am' in url.lower()
-        elif platform_lower in ("tiktok", "vt.tiktok.com", "vm.tiktok.com"):
-            return any(host in url.lower() for host in ['tiktok.com', 'vt.tiktok.com', 'vm.tiktok.com'])
-
-    return True
+    return valid_url(url, platform)

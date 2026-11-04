@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -9,6 +11,14 @@ plugins {
 val chaquopyBuildPython = providers.gradleProperty("chaquopy.buildPython")
     .orElse(providers.environmentVariable("CHAQUOPY_BUILD_PYTHON"))
     .orElse("python")
+
+val releaseSigningFile = rootProject.file("../.release/signing.properties")
+val releaseSigning = Properties().apply {
+    if (releaseSigningFile.exists()) releaseSigningFile.inputStream().use { load(it) }
+}
+if (gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) } && !releaseSigningFile.exists()) {
+    throw GradleException("Release signing is missing. Run tool/prepare_release_signing.py first.")
+}
 
 android {
     namespace = "com.example.nazzelha"
@@ -39,11 +49,17 @@ android {
         }
     }
 
+    signingConfigs {
+        if (releaseSigningFile.exists()) create("release") {
+            storeFile = rootProject.file(releaseSigning.getProperty("storeFile"))
+            storePassword = releaseSigning.getProperty("storePassword")
+            keyAlias = releaseSigning.getProperty("keyAlias")
+            keyPassword = releaseSigning.getProperty("keyPassword")
+        }
+    }
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (releaseSigningFile.exists()) signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -72,7 +88,7 @@ chaquopy {
             // normal videos and Shorts alike. This pin controls the yt-dlp that
             // is ACTUALLY executed inside the APK via Chaquopy - the Windows
             // .venv requirements.txt pin does not affect Android.
-            install("yt-dlp==2026.8.19")
+            install("yt-dlp==2026.10.26")
             // certifi is a pure-Python package that ships a complete Mozilla CA
             // bundle and is the ONE dependency yt-dlp prefers to use for TLS
             // verification. Chaquopy's embedded CPython does not inherit the
@@ -94,6 +110,8 @@ chaquopy {
             src = false
         }
     }
+    // Share extraction, URL validation and playlist parsing with desktop.
+    sourceSets.getByName("main").srcDir("../../python_backend")
 }
 
 flutter {

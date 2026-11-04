@@ -1,65 +1,126 @@
 import 'package:flutter/material.dart';
-
 import '../l10n/app_strings.dart';
-import 'home_screen.dart';
-import 'nazzelha_sawa_screen.dart';
+import '../widgets/app_motion.dart';
+import 'playlist_history_screen.dart';
+import 'nazzelha_screen.dart';
+import 'playlist_screen.dart';
 
-/// Top-level navigation shell.
-///
-/// Hosts the existing download page (Home) and the new Nazzelha Sawa queue
-/// behind a bottom navigation bar. A right-swipe on the Home tab also opens
-/// Nazzelha Sawa; the gesture only listens for a deliberate horizontal drag,
-/// so it does not interfere with dropdowns, text fields, or the queue list's
-/// vertical scrolling.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
-
   @override
   State<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends State<MainShell> {
   int _index = 0;
+  static const _pages = [
+    NazzelhaScreen(),
+    PlaylistScreen(),
+    PlaylistHistoryScreen()
+  ];
+  static const _icons = [
+    Icons.playlist_play_outlined,
+    Icons.video_library_outlined,
+    Icons.history_rounded
+  ];
+  static const _selectedIcons = [
+    Icons.playlist_play_rounded,
+    Icons.video_library_rounded,
+    Icons.history_rounded
+  ];
+
+  void _select(int index) {
+    if (index != _index) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      setState(() => _index = index);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final strings = AppStrings.of(context);
-    return Scaffold(
-      body: GestureDetector(
+    final s = AppStrings.of(context);
+    final labels = [
+      s.navHome,
+      s.isAr ? 'بلاي ليست' : 'Playlist',
+      s.isAr ? 'السجل' : 'History'
+    ];
+    final page = GestureDetector(
         behavior: HitTestBehavior.deferToChild,
-        onHorizontalDragEnd: _index == 0 ? _onSwipeEnd : null,
+        onHorizontalDragEnd: (details) {
+          final direction =
+              Directionality.of(context) == TextDirection.rtl ? -1 : 1;
+          final velocity = (details.primaryVelocity ?? 0) * direction;
+          if (velocity.abs() > 500) {
+            _select((_index + (velocity < 0 ? 1 : -1)).clamp(0, 2));
+          }
+        },
         child: IndexedStack(
-          index: _index,
-          children: const [
-            HomeScreen(),
-            NazzelhaSawaScreen(),
-          ],
-        ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.download_outlined),
-            selectedIcon: const Icon(Icons.download),
-            label: strings.navDownload,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.playlist_play_outlined),
-            selectedIcon: const Icon(Icons.playlist_play),
-            label: strings.navSawa,
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _onSwipeEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0;
-    // Swipe right (positive primary velocity in LTR) opens Nazzelha Sawa.
-    if (velocity > 400) {
-      setState(() => _index = 1);
-    }
+            index: _index,
+            children: List.generate(
+                _pages.length,
+                (i) => TickerMode(
+                    enabled: _index == i,
+                    child: AnimatedOpacity(
+                        opacity: _index == i ? 1 : 0,
+                        duration: motionDuration(context, 180),
+                        child: AnimatedSlide(
+                            offset: _index == i
+                                ? Offset.zero
+                                : const Offset(0, .015),
+                            duration: motionDuration(context, 200),
+                            curve: Curves.easeOutCubic,
+                            child: _pages[i]))))));
+    return LayoutBuilder(builder: (context, constraints) {
+      final desktop = constraints.maxWidth >= 860;
+      return Scaffold(
+        body: desktop
+            ? Row(children: [
+                NavigationRail(
+                    selectedIndex: _index,
+                    onDestinationSelected: _select,
+                    extended: constraints.maxWidth >= 1180,
+                    labelType: constraints.maxWidth >= 1180
+                        ? NavigationRailLabelType.none
+                        : NavigationRailLabelType.all,
+                    minWidth: 92,
+                    minExtendedWidth: 212,
+                    leading: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 22, 12, 26),
+                        child: Image.asset('assets/logo/nazzelha-v2.png',
+                            width: 48, height: 48)),
+                    destinations: List.generate(
+                        3,
+                        (i) => NavigationRailDestination(
+                            icon: Icon(_icons[i]),
+                            selectedIcon: Icon(_selectedIcons[i]),
+                            label: Text(labels[i],
+                                key: ValueKey('nav-$i-label'))))),
+                const VerticalDivider(width: 1),
+                Expanded(child: page),
+              ])
+            : SafeArea(top: true, bottom: false, child: page),
+        bottomNavigationBar: desktop
+            ? null
+            : DecoratedBox(
+                decoration: BoxDecoration(
+                    border: Border(
+                        top: BorderSide(
+                            color: Theme.of(context).colorScheme.outline))),
+                child: NavigationBar(
+                    selectedIndex: _index,
+                    onDestinationSelected: _select,
+                    animationDuration: motionDuration(context, 220),
+                    destinations: List.generate(
+                        3,
+                        (i) => NavigationDestination(
+                            key: ValueKey('nav-$i'),
+                            icon: Icon(_icons[i]),
+                            selectedIcon: AnimatedScale(
+                                scale: _index == i ? 1.08 : 1,
+                                duration: motionDuration(context),
+                                child: Icon(_selectedIcons[i])),
+                            label: labels[i])))),
+      );
+    });
   }
 }

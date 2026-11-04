@@ -30,6 +30,11 @@ migrate_working_dir/
 **/build/
 
 # Python and local development files
+.release/
+*.jks
+.cache/
+node_modules/
+.wrangler/
 .venv/
 venv/
 __pycache__/
@@ -118,7 +123,6 @@ app.*.map.json
 **/ios/Flutter/flutter_export_environment.sh.re.deps
 
 # Web
-lib/generated_plugin_registrant.dart
 
 # Windows
 windows/flutter/generated_plugins.cmake

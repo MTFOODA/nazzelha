@@ -1,19 +1,25 @@
-import 'dart:io';
+import 'services/runtime_platform.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:logger/logger.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'app.dart';
 import 'services/python_service.dart';
 import 'services/queue_controller.dart';
+import 'services/playlist_controller.dart';
 import 'theme/locale_provider.dart';
 import 'theme/theme_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  GoogleFonts.config.allowRuntimeFetching = false;
 
-  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+  if (!kIsWeb &&
+      (RuntimePlatform.isWindows ||
+          RuntimePlatform.isLinux ||
+          RuntimePlatform.isMacOS)) {
     await windowManager.ensureInitialized();
 
     WindowOptions windowOptions = const WindowOptions(
@@ -49,6 +55,8 @@ void main() async {
       providers: [
         Provider<Logger>.value(value: logger),
         Provider<PythonService>.value(value: pythonService),
+        ChangeNotifierProvider(
+            create: (_) => PlaylistController(pythonService)..load()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
         ChangeNotifierProvider(

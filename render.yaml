@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: nazzelha-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NAZZELHA_SESSION_SECRET
+        generateValue: true
+      - key: NAZZELHA_SITE_ORIGIN
+        value: https://nazzelha.mohamed-fooda-mtf.workers.dev
+      - key: NAZZELHA_MAX_CACHE_BYTES
+        value: '1073741824'

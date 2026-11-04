@@ -12,7 +12,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// without a real backend or an Android device.
 class FakePythonService extends PythonService {
   final List<String> downloadedUrls = [];
+  final List<int> downloadedQualities = [];
+  @override
+  Future<List<int>> getAvailableQualities(String url, String platform) async =>
+      [360, 720, 1080];
   final Set<String> failUrls = {};
+  bool publicWeb = false;
+  @override
+  bool get isPublicWeb => publicWeb;
   int cancelCount = 0;
 
   FakePythonService() : super(logger: Logger(level: Level.off));
@@ -46,6 +53,7 @@ class FakePythonService extends PythonService {
     String? filename,
   }) async* {
     downloadedUrls.add(url);
+    downloadedQualities.add(quality);
     if (failUrls.contains(url)) {
       throw Exception('simulated download failure');
     }
@@ -66,7 +74,8 @@ class FakePythonService extends PythonService {
       phase: 'merging',
     );
     lastDownloadResult = {
-      'file': '$outputPath${Platform.pathSeparator}out_${downloadedUrls.length}.mp4',
+      'file':
+          '$outputPath${Platform.pathSeparator}out_${downloadedUrls.length}.mp4',
       'filename': 'out.mp4',
     };
   }
@@ -75,6 +84,24 @@ class FakePythonService extends PythonService {
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+  });
+
+  test(
+      'expired public file enables retry without restarting local completed downloads',
+      () async {
+    final python = FakePythonService();
+    final c = NazzelhaQueueController(
+        python: python, logger: Logger(level: Level.off));
+    await c.load();
+    final task = c.addTask()..status = TaskStatus.completed;
+    task.outputFile = '/api/files/${'a' * 48}';
+    c.expireWebFile(task.id);
+    expect(task.status, TaskStatus.completed);
+    python.publicWeb = true;
+    c.expireWebFile(task.id);
+    expect(task.status, TaskStatus.paused);
+    expect(task.outputFile, isNull);
+    c.dispose();
   });
 
   NazzelhaQueueController makeController(FakePythonService fake) {
@@ -139,10 +166,12 @@ void main() {
     await pumpUntilIdle(c);
 
     expect(
-        fake.downloadedUrls.where((u) => u == 'https://youtube.com/a').length, 1);
+        fake.downloadedUrls.where((u) => u == 'https://youtube.com/a').length,
+        1);
   });
 
-  test('a failing task is recorded and the next eligible task still runs', () async {
+  test('a failing task is recorded and the next eligible task still runs',
+      () async {
     final fake = FakePythonService();
     final c = makeController(fake);
 
@@ -157,9 +186,10 @@ void main() {
       'https://youtube.com/a',
       'https://youtube.com/b',
     ]);
-    expect(c.tasks.firstWhere((t) => t.url.endsWith('/a')).status, TaskStatus.failed);
-    expect(
-        c.tasks.firstWhere((t) => t.url.endsWith('/b')).status, TaskStatus.completed);
+    expect(c.tasks.firstWhere((t) => t.url.endsWith('/a')).status,
+        TaskStatus.failed);
+    expect(c.tasks.firstWhere((t) => t.url.endsWith('/b')).status,
+        TaskStatus.completed);
   });
 
   test('removing a pending task does not corrupt ordering', () async {
@@ -181,7 +211,8 @@ void main() {
     ]);
   });
 
-  test('invalid cross-platform URL is rejected with a stable error code', () async {
+  test('invalid cross-platform URL is rejected with a stable error code',
+      () async {
     final fake = FakePythonService();
     final c = makeController(fake);
 
@@ -233,7 +264,8 @@ void main() {
     expect(t2.status, TaskStatus.pending);
   });
 
-  test('recovery auto-resumes approved-but-not-started (queued) tasks', () async {
+  test('recovery auto-resumes approved-but-not-started (queued) tasks',
+      () async {
     SharedPreferences.setMockInitialValues({
       NazzelhaQueueController.prefsKey:
           '[{"id":"t1","url":"https://youtube.com/a","platform":"youtube",'
@@ -246,7 +278,8 @@ void main() {
     await pumpUntilIdle(c);
 
     expect(fake.downloadedUrls, ['https://youtube.com/a']);
-    expect(c.tasks.firstWhere((t) => t.id == 't1').status, TaskStatus.completed);
+    expect(
+        c.tasks.firstWhere((t) => t.id == 't1').status, TaskStatus.completed);
   });
 
   test('recovery does NOT auto-resume an interrupted (paused) task', () async {
@@ -263,6 +296,26 @@ void main() {
 
     expect(fake.downloadedUrls, isEmpty);
     expect(c.tasks.firstWhere((t) => t.id == 't1').status, TaskStatus.paused);
+  });
+  test(
+      'each card persists its selected quality and passes it to the downloader',
+      () async {
+    final fake = FakePythonService();
+    final c = makeController(fake);
+    await c.load();
+    final first = addConfigured(c, 'https://youtube.com/first', 'youtube');
+    final second = addConfigured(c, 'https://youtube.com/second', 'youtube');
+    await c.fetchQualities(first.id);
+    c.updateQuality(first.id, 720);
+    expect(second.quality, 4320);
+    final restored = makeController(FakePythonService());
+    await restored.load();
+    expect(restored.taskById(first.id)!.quality, 720);
+    await c.start(first.id);
+    await c.start(second.id);
+    expect(fake.downloadedQualities, [720, 4320]);
+    c.dispose();
+    restored.dispose();
   });
 }
 

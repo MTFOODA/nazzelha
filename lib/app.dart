@@ -21,6 +21,9 @@ class MyApp extends StatelessWidget {
               theme: AppTheme.lightTheme,
               darkTheme: AppTheme.darkTheme,
               themeMode: themeProvider.themeMode,
+              themeAnimationDuration: WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.disableAnimations
+                  ? Duration.zero : const Duration(milliseconds: 240),
+              themeAnimationCurve: Curves.easeOutCubic,
               locale: localeProvider.locale,
               supportedLocales: const [Locale('en'), Locale('ar')],
               localizationsDelegates: const [

@@ -15,6 +15,7 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import android.provider.DocumentsContract
 import android.util.Log
 import com.chaquo.python.PyObject
 import com.chaquo.python.Python
@@ -38,6 +39,7 @@ import org.json.JSONArray
  */
 interface ProgressSink {
     fun send(json: String)
+    fun isCancelled(): Boolean = false
 }
 
 class MainActivity : FlutterActivity() {
@@ -210,7 +212,100 @@ class MainActivity : FlutterActivity() {
         pythonChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
         pythonChannel.setMethodCallHandler { call, result ->
             when (call.method) {
+                "configure_auth", "get_auth_status" -> {
+                    val command = JSONObject()
+                        .put("action", call.method)
+                        .put("platform", call.argument<String>("platform") ?: "facebook")
+                    call.argument<String>("content")?.let { command.put("content", it) }
+                    executor.execute {
+                        try {
+                            val json = Python.getInstance().getModule("android_backend")
+                                .callAttr("handle_auth", command.toString()).toString()
+                            mainHandler.post { result.success(jsonToMap(json)) }
+                        } catch (e: Exception) {
+                            mainHandler.post { result.error("AUTH_SETTINGS_ERROR", "Could not save the session file.", null) }
+                        }
+                    }
+                }
+                "debug_set_proxy" -> {
+                    if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+                        val proxy = call.argument<String>("proxy") ?: ""
+                        require(proxy.startsWith("http://127.0.0.1:") || proxy.startsWith("http://10.0.2.2:"))
+                        val environment = Python.getInstance().getModule("os").get("environ")!!
+                        environment.callAttr("__setitem__", "HTTPS_PROXY", proxy)
+                        environment.callAttr("__setitem__", "HTTP_PROXY", proxy)
+                        result.success(true)
+                    } else result.notImplemented()
+                }
+                "debug_background" -> {
+                    if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+                        moveTaskToBack(true)
+                        result.success(true)
+                    } else result.notImplemented()
+                }
+                "get_playlist" -> {
+                    val url = call.argument<String>("url") ?: ""
+                    executor.execute {
+                        try {
+                            val data = Python.getInstance().getModule("android_backend")
+                                .callAttr("get_playlist", url).toString()
+                            mainHandler.post { result.success(jsonToMap(data)) }
+                        } catch (e: Exception) {
+                            mainHandler.post { result.error("PLAYLIST_ERROR", e.message, null) }
+                        }
+                    }
+                }
+                "start_playlist" -> {
+                    if (DownloadForegroundService.isRunning) {
+                        result.error("BUSY", "Another download is running. Please wait.", null)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        val job = JSONObject(call.argument<String>("job") ?: "")
+                        val entries = job.getJSONArray("entries")
+                        require(entries.length() > 0) { "The playlist is empty" }
+                        val playlistFolder = job.getString("folder")
+                        require(playlistFolder.isNotBlank() && playlistFolder != "." && playlistFolder != ".." &&
+                            !playlistFolder.contains('/') && !playlistFolder.contains('\\')) { "Invalid folder name" }
+                        DownloadForegroundService.savePlaylist(applicationContext, job)
+                        val serviceIntent = Intent(this, DownloadForegroundService::class.java).apply {
+                            action = DownloadForegroundService.ACTION_PLAYLIST
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(serviceIntent)
+                        else startService(serviceIntent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("PLAYLIST_ERROR", e.message, null)
+                    }
+                }
+                "remove_playlist_entry" -> {
+                    try {
+                        val jobId = call.argument<String>("job_id") ?: ""
+                        val key = call.argument<String>("key") ?: ""
+                        require(jobId.isNotBlank() && key.isNotBlank()) { "Invalid playlist entry" }
+                        DownloadForegroundService.removePlaylistEntry(applicationContext, jobId, key)
+                        result.success(true)
+                    } catch (e: Exception) { result.error("PLAYLIST_ERROR", e.message, null) }
+                }
+                "get_playlist_job" -> {
+                    val raw = DownloadForegroundService.loadPlaylist(applicationContext)
+                    if (raw == null) result.success(null)
+                    else {
+                        val job = JSONObject(raw)
+                        if (job.optString("status") == "running" && !DownloadForegroundService.isRunning) {
+                            job.put("status", "paused")
+                            val entries = job.getJSONArray("entries")
+                            for (i in 0 until entries.length()) {
+                                val entry = entries.getJSONObject(i)
+                                if (entry.optString("status") == "downloading") entry.put("status", "paused")
+                            }
+                            DownloadForegroundService.savePlaylist(applicationContext, job)
+                        }
+                        result.success(jsonToMap(job.toString()))
+                    }
+                }
                 "initialize" -> {
+                    executor.execute {
                     try {
                         val response = initializePython()
                         // Phase 1: emit the Android runtime diagnostic (yt-dlp/curl_cffi/
@@ -223,10 +318,11 @@ class MainActivity : FlutterActivity() {
                         } catch (e: Exception) {
                             Log.w(TAG, "post-init runtime diagnostics emitted failure: ${e.message}")
                         }
-                        result.success(response)
+                        mainHandler.post { result.success(response) }
                     } catch (e: Exception) {
                         Log.e(TAG, "Python init failed", e)
-                        result.error("INIT_ERROR", e.message ?: "Python initialization failed", null)
+                        mainHandler.post { result.error("INIT_ERROR", e.message ?: "Python initialization failed", null) }
+                    }
                     }
                 }
                 "get_qualities" -> {
@@ -252,6 +348,10 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "download", "start_download" -> {
+                    if (DownloadForegroundService.isRunning) {
+                        result.error("BUSY", "Another download is running. Please wait.", null)
+                        return@setMethodCallHandler
+                    }
                     val url = call.argument<String>("url") ?: ""
                     val platform = call.argument<String>("platform") ?: "youtube"
                     val quality = call.argument<Int>("quality") ?: 720
@@ -339,6 +439,40 @@ class MainActivity : FlutterActivity() {
                 "ensure_storage_permission" -> {
                     ensureStoragePermission(result)
                 }
+                "open_download_location" -> {
+                    try {
+                        val platform = call.argument<String>("platform") ?: "youtube"
+                        val folder = call.argument<String>("folder")
+                        require(folder == null || (folder.isNotBlank() && folder != "." && folder != ".." &&
+                            !folder.contains('/') && !folder.contains('\\'))) { "Invalid folder name" }
+                        var relative = "Download/Nazzelha/${DownloadForegroundService.platformFolder(platform)}" +
+                            (if (folder == null) "" else "/Playlists/$folder")
+                        val file = call.argument<String>("file")
+                        if (file != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            val uri = Uri.parse(file)
+                            if (uri.scheme == "content" && uri.authority == MediaStore.AUTHORITY) {
+                                contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.RELATIVE_PATH), null, null, null)?.use {
+                                    if (it.moveToFirst()) relative = it.getString(0).trimEnd('/')
+                                    else throw IOException("The downloaded file could not be found.")
+                                }
+                            }
+                        }
+                        require(relative.startsWith("Download/Nazzelha/") &&
+                            relative.split('/').none { it == ".." || it == "." }) { "Invalid download location" }
+                        val uri = DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:$relative")
+                        val view = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, DocumentsContract.Document.MIME_TYPE_DIR)
+                            putExtra(DocumentsContract.EXTRA_INITIAL_URI, uri)
+                        }
+                        try { startActivity(view) }
+                        catch (_: Exception) {
+                            startActivity(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                                putExtra(DocumentsContract.EXTRA_INITIAL_URI, uri)
+                            })
+                        }
+                        result.success(true)
+                    } catch (e: Exception) { result.error("OPEN_ERROR", e.message ?: "Could not open file location.", null) }
+                }
                 "open_media" -> {
                     try {
                         val uri = Uri.parse(call.argument<String>("uri") ?: "")
@@ -423,7 +557,8 @@ class MainActivity : FlutterActivity() {
             ffmpegRuntime["binDir"],
             ffmpegRuntime["libDir"],
             ffmpegRuntime["abi"],
-            pyTempDir.absolutePath
+            pyTempDir.absolutePath,
+            File(filesDir, "sessions").absolutePath
         )
         if (pyResult == null) {
             throw RuntimeException(

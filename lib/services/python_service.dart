@@ -1,15 +1,18 @@
+import 'runtime_platform.dart';
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/download_progress.dart';
 import 'download_paths.dart';
+import 'browser_save.dart';
 
 /// Raised when a download was explicitly cancelled by the user. Keeping this
 /// distinct from a generic failure lets the UI show "cancelled" instead of
@@ -21,11 +24,18 @@ class DownloadCancelledException implements Exception {
   String toString() => message;
 }
 
+class WebFileExpiredException implements Exception {
+  @override
+  String toString() => 'This temporary file expired. Prepare the video again.';
+}
+
 class PythonResponseBuffer {
+  Object? _closedError;
   final Queue<String> _pendingResponses = Queue<String>();
   final List<Completer<String>> _waiters = <Completer<String>>[];
 
   void addResponse(String response) {
+    if (_closedError != null) return;
     if (_waiters.isNotEmpty) {
       final completer = _waiters.removeAt(0);
       if (!completer.isCompleted) {
@@ -38,13 +48,25 @@ class PythonResponseBuffer {
   }
 
   Future<String> readNext({required Duration timeout}) {
+    if (_closedError != null) return Future.error(_closedError!);
     if (_pendingResponses.isNotEmpty) {
       return Future.value(_pendingResponses.removeFirst());
     }
 
     final completer = Completer<String>();
     _waiters.add(completer);
-    return completer.future.timeout(timeout);
+    return completer.future.timeout(timeout).whenComplete(() {
+      _waiters.remove(completer);
+    });
+  }
+
+  void close(Object error) {
+    _closedError = error;
+    _pendingResponses.clear();
+    for (final waiter in _waiters) {
+      if (!waiter.isCompleted) waiter.completeError(error);
+    }
+    _waiters.clear();
   }
 }
 
@@ -58,8 +80,19 @@ class PythonService {
   bool _isInitialized = false;
   bool _useHttpBackend = false;
   bool _androidLocalBackend = false;
+  bool _commandBusy = false;
+  bool _downloadBusy = false;
+  bool _nativePlaylistBusy = false;
+  String? _downloadDirectory;
+  Future<void>? _restartInProgress;
+  String? _playlistFolder;
+  bool get isBusy => _commandBusy || _downloadBusy || _nativePlaylistBusy;
   late String _httpBackendUrl;
   String? lastInitError;
+  bool get isPublicWeb =>
+      kIsWeb &&
+      (const bool.fromEnvironment('NAZZELHA_PUBLIC_WEB') ||
+          !{'localhost', '127.0.0.1', '::1'}.contains(Uri.base.host));
   static const MethodChannel _androidChannel = MethodChannel('nazzelha/python');
 
   /// REAL progress events pushed from the Android native side while a
@@ -72,11 +105,35 @@ class PythonService {
   bool get isInitialized => _isInitialized;
 
   Future<void> initialize() async {
+    if (kIsWeb) {
+      const configured = String.fromEnvironment('NAZZELHA_BACKEND');
+      _httpBackendUrl = configured.isNotEmpty
+          ? configured
+          : isPublicWeb
+              ? '/api'
+              : 'http://127.0.0.1:8000';
+      _useHttpBackend = true;
+      try {
+        final response = await http
+            .get(Uri.parse('$_httpBackendUrl/health'))
+            .timeout(const Duration(seconds: 5));
+        _isInitialized = response.statusCode == 200 &&
+            jsonDecode(response.body)['ready'] == true;
+      } catch (_) {
+        _isInitialized = false;
+      }
+      lastInitError = _isInitialized
+          ? null
+          : isPublicWeb
+              ? 'The free download service is waking up. Please try again shortly.'
+              : 'Start the local backend: python python_backend/web_bridge.py, then reload this page.';
+      return;
+    }
     logger.i('[PythonService] Initialization started');
     logger.i('[PythonService] Platform: ${Platform.operatingSystem}');
 
     try {
-      if (Platform.isAndroid) {
+      if (RuntimePlatform.isAndroid) {
         _useHttpBackend = false;
         _androidLocalBackend = false;
         _responseBuffer = PythonResponseBuffer();
@@ -121,7 +178,7 @@ class PythonService {
         return;
       }
 
-      if (Platform.isIOS) {
+      if (RuntimePlatform.isIOS) {
         _useHttpBackend = false;
         _androidLocalBackend = false;
         _responseBuffer = PythonResponseBuffer();
@@ -142,7 +199,7 @@ class PythonService {
       _isInitialized = false;
       _androidLocalBackend = false;
       _useHttpBackend = false;
-      if (!Platform.isAndroid && !Platform.isIOS) {
+      if (!RuntimePlatform.isAndroid && !RuntimePlatform.isIOS) {
         rethrow;
       }
     }
@@ -151,7 +208,11 @@ class PythonService {
   /// Spawn the desktop Python backend, wire up stdout/stderr and wait for the
   /// ready handshake. Used both by [initialize] and after a stalled request.
   Future<void> _startDesktopBackend() async {
-    final pythonBackendPath = _getPythonBackendPath();
+    final bundledEngine = File(
+        '${File(Platform.resolvedExecutable).parent.path}${Platform.pathSeparator}backend${Platform.pathSeparator}nazzelha-engine.exe');
+    final packaged = RuntimePlatform.isWindows && bundledEngine.existsSync();
+    final pythonBackendPath =
+        packaged ? bundledEngine.parent.path : _getPythonBackendPath();
     logger.i('[PythonService] Backend path: $pythonBackendPath');
 
     final backendDir = Directory(pythonBackendPath);
@@ -161,12 +222,13 @@ class PythonService {
     }
 
     final mainFile = File('$pythonBackendPath${Platform.pathSeparator}main.py');
-    if (!mainFile.existsSync()) {
+    if (!packaged && !mainFile.existsSync()) {
       throw StateError(
           'main.py not found in python backend at: ${mainFile.path}');
     }
 
-    final pythonExe = await _resolvePythonExecutable();
+    final pythonExe =
+        packaged ? bundledEngine.path : await _resolvePythonExecutable();
     if (pythonExe == null) {
       throw StateError(
         'No valid Python interpreter is available to run the Nazzelha backend. Install Python and ensure the project virtual environment or NAZZELHA_PYTHON is configured.',
@@ -175,10 +237,12 @@ class PythonService {
 
     _pythonProcess = await Process.start(
       pythonExe,
-      ['main.py'],
+      packaged ? [] : ['-u', '-X', 'utf8', 'main.py'],
       workingDirectory: pythonBackendPath,
       mode: ProcessStartMode.normal,
+      environment: {'PYTHONUTF8': '1', 'PYTHONIOENCODING': 'utf-8'},
     );
+    _pythonProcess!.stdin.encoding = utf8;
 
     logger.i(
         '[PythonService] Python process started with PID: ${_pythonProcess?.pid} (exe: $pythonExe)');
@@ -224,8 +288,17 @@ class PythonService {
   /// Kill a stalled backend (including child processes such as Node.js used
   /// by yt-dlp challenge solvers) and start a fresh one so the app keeps
   /// working after a timeout instead of talking to a zombie process.
-  Future<void> _restartDesktopBackend() async {
+  Future<void> _restartDesktopBackend({Object? reason}) {
+    if (_restartInProgress != null) return _restartInProgress!;
+    final future = _restartDesktopBackendImpl(reason);
+    _restartInProgress = future;
+    return future.whenComplete(() => _restartInProgress = null);
+  }
+
+  Future<void> _restartDesktopBackendImpl(Object? reason) async {
     logger.w('[PythonService] Restarting Python backend after stalled request');
+    _isInitialized = false;
+    _responseBuffer?.close(reason ?? StateError('Backend restarted'));
     final staleProcess = _pythonProcess;
     _pythonProcess = null;
     _responseBuffer = null;
@@ -236,7 +309,7 @@ class PythonService {
 
     if (staleProcess != null) {
       try {
-        if (Platform.isWindows) {
+        if (RuntimePlatform.isWindows) {
           // /T kills the whole tree (python.exe + node.exe children), /F forces.
           final result = await Process.run(
             'taskkill',
@@ -259,29 +332,35 @@ class PythonService {
     Map<String, dynamic> command, {
     Duration? timeout,
   }) async {
+    if (_restartInProgress != null) await _restartInProgress;
+    if (kIsWeb && !_isInitialized) await _connectWebBackend();
     if (!_isInitialized) {
       final message = lastInitError ?? 'Python service is not initialized';
       throw StateError(message);
     }
 
+    if (isBusy) throw StateError('Another operation is running. Please wait.');
+    _commandBusy = true;
     try {
       if (_androidLocalBackend) {
-        return await _handleAndroidLocalCommand(command);
+        return await _handleAndroidLocalCommand(command)
+            .timeout(timeout ?? const Duration(minutes: 10));
       }
 
-      if (Platform.isAndroid || Platform.isIOS) {
+      if (RuntimePlatform.isAndroid || RuntimePlatform.isIOS) {
         throw StateError(lastInitError ??
             'Android does not have a real Python backend in this build.');
       }
 
       if (_useHttpBackend) {
         final uri = Uri.parse('$_httpBackendUrl/command');
-        final resp = await http.post(uri,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(command));
+        final resp = await http
+            .post(uri,
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode(command))
+            .timeout(timeout ?? const Duration(minutes: 10));
         if (resp.statusCode != 200) {
-          throw Exception(
-              'HTTP backend error: ${resp.statusCode} ${resp.body}');
+          throw Exception(_httpError(resp.statusCode, resp.body));
         }
         return jsonDecode(resp.body) as Map<String, dynamic>;
       }
@@ -294,7 +373,8 @@ class PythonService {
       _pythonProcess!.stdin.writeln(commandJson);
       await _pythonProcess!.stdin.flush();
 
-      logger.d('Sent command: $commandJson');
+      // Session imports contain credentials; command bodies never belong in logs.
+      logger.d('Sent command: ${command['action']}');
 
       final responseLine = await _readNextResponse(
         timeout: timeout ?? const Duration(minutes: 10),
@@ -306,7 +386,15 @@ class PythonService {
     } catch (e, st) {
       logger.e('[PythonService] Error sending command: ${e.toString()}');
       logger.e('[PythonService] Stack trace: $st');
+      if (e is TimeoutException &&
+          !kIsWeb &&
+          !RuntimePlatform.isAndroid &&
+          !RuntimePlatform.isIOS) {
+        await _restartDesktopBackend();
+      }
       rethrow;
+    } finally {
+      _commandBusy = false;
     }
   }
 
@@ -335,11 +423,6 @@ class PythonService {
       if (e is TimeoutException || e.toString().contains('TimeoutException')) {
         logger
             .e('[Submit] Extraction timed out after 170s; restarting backend');
-        try {
-          await _restartDesktopBackend();
-        } catch (restartError) {
-          logger.e('[PythonService] Backend restart failed: $restartError');
-        }
         throw Exception(
             'Video extraction timed out. The platform may be blocking the request right now - please press SUBMIT again.');
       }
@@ -374,9 +457,64 @@ class PythonService {
     bool resume = false,
     String? filename,
   }) async* {
+    if (_restartInProgress != null) await _restartInProgress;
+    if (isBusy) throw StateError('Another operation is running. Please wait.');
+    _downloadBusy = true;
+    lastDownloadResult = null;
     try {
+      if (kIsWeb && !_isInitialized) await _connectWebBackend();
       if (!_isInitialized) {
         throw StateError(lastInitError ?? 'Python service is not initialized');
+      }
+
+      if (kIsWeb) {
+        final client = http.Client();
+        try {
+          final request =
+              http.Request('POST', Uri.parse('$_httpBackendUrl/download'))
+                ..headers['Content-Type'] = 'application/json'
+                ..body = jsonEncode({
+                  'url': url,
+                  'platform': platform,
+                  'quality': quality,
+                  'mode': mode,
+                  'folder_name': _playlistFolder,
+                  'filename': filename,
+                });
+          final response = await client.send(request);
+          if (response.statusCode != 200) {
+            final body = await response.stream.bytesToString();
+            throw Exception(_httpError(response.statusCode, body));
+          }
+          var completed = false;
+          await for (final line in response.stream
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
+            final payload = jsonDecode(line) as Map<String, dynamic>;
+            if (isProgressPayload(payload)) {
+              yield DownloadProgress.fromJson(payload);
+            } else if (isTerminalResponse(payload)) {
+              if (payload['cancelled'] == true) {
+                throw DownloadCancelledException('Download cancelled');
+              }
+              if (payload['success'] != true) throw Exception(payload['error']);
+              lastDownloadResult = payload;
+              completed = true;
+              yield DownloadProgress(
+                  percent: 100,
+                  speed: 'Complete',
+                  eta: '00:00',
+                  totalBytes: 0,
+                  downloadedBytes: 0);
+            }
+          }
+          if (!completed) {
+            throw Exception('Connection to the download backend was lost.');
+          }
+        } finally {
+          client.close();
+        }
+        return;
       }
 
       if (_androidLocalBackend) {
@@ -403,6 +541,10 @@ class PythonService {
         final progressController = StreamController<DownloadProgress>();
         late final StreamSubscription<Map<String, dynamic>> eventSub;
         eventSub = _androidEventController.stream.listen((event) {
+          if (event['playlist_id'] != null ||
+              (event['url'] != null && event['url'] != url)) {
+            return;
+          }
           if (event['_type'] == 'progress') {
             progressController.add(DownloadProgress.fromJson(event));
           } else if (event['_type'] == 'result') {
@@ -422,8 +564,8 @@ class PythonService {
                   event['error']?.toString() ?? 'Download cancelled'));
               progressController.close();
             } else {
-              progressController.addError(Exception(
-                  event['error']?.toString() ?? 'Download failed'));
+              progressController.addError(
+                  Exception(event['error']?.toString() ?? 'Download failed'));
               progressController.close();
             }
           }
@@ -448,12 +590,15 @@ class PythonService {
           }
         }
 
-        yield* progressController.stream;
-        unawaited(eventSub.cancel());
+        try {
+          yield* progressController.stream;
+        } finally {
+          await eventSub.cancel();
+        }
         return;
       }
 
-      if (Platform.isAndroid || Platform.isIOS) {
+      if (RuntimePlatform.isAndroid || RuntimePlatform.isIOS) {
         final response = await sendCommand({
           'action': 'download',
           'url': url,
@@ -467,9 +612,7 @@ class PythonService {
         if (response['success'] == true) {
           final filePath = (response['file'] ?? '').toString();
           final file = filePath.isNotEmpty ? File(filePath) : null;
-          if (file == null ||
-              !await file.exists() ||
-              await file.length() <= 0) {
+          if (file == null || !file.existsSync() || await file.length() <= 0) {
             throw StateError(
                 'Download reported success but the file was not created or is empty: $filePath');
           }
@@ -507,9 +650,7 @@ class PythonService {
         if (response['success'] == true) {
           final filePath = (response['file'] ?? '').toString();
           final file = filePath.isNotEmpty ? File(filePath) : null;
-          if (file == null ||
-              !await file.exists() ||
-              await file.length() <= 0) {
+          if (file == null || !file.existsSync() || await file.length() <= 0) {
             throw StateError(
                 'Download reported success but the file was not created or is empty: $filePath');
           }
@@ -552,9 +693,10 @@ class PythonService {
 
       logger.d('Sent download command: $commandJson');
 
+      final downloadBuffer = _responseBuffer!;
       while (true) {
-        final line =
-            await _readNextResponse(timeout: const Duration(minutes: 10));
+        final line = await _readNextResponse(
+            timeout: const Duration(minutes: 10), sourceBuffer: downloadBuffer);
         if (line.trim().isEmpty) {
           continue;
         }
@@ -585,7 +727,7 @@ class PythonService {
           }
 
           final file = File(filePath);
-          if (!await file.exists() || await file.length() <= 0) {
+          if (!file.existsSync() || await file.length() <= 0) {
             throw StateError(
                 'Download succeeded but the file was missing or empty: $filePath');
           }
@@ -612,11 +754,13 @@ class PythonService {
       logger.e('Download error: ${e.toString()}');
       logger.e('Download stack trace: $st');
       rethrow;
+    } finally {
+      _downloadBusy = false;
     }
   }
 
   Future<String> getDownloadDirectory() async {
-    if (Platform.isAndroid) {
+    if (RuntimePlatform.isAndroid) {
       // Informational only: the native side persists finished downloads into
       // the public Downloads/Nazzelha location via MediaStore, using its own
       // always-writable staging directory for the actual yt-dlp output.
@@ -640,9 +784,183 @@ class PythonService {
     });
 
     if (response['success'] == true) {
-      return response['download_dir'] as String;
+      return _downloadDirectory = response['download_dir'] as String;
     } else {
       throw Exception(response['error'] ?? 'Unable to get download directory');
+    }
+  }
+
+  Future<Map<String, dynamic>> getPlaylist(String url) async {
+    final result = await sendCommand({'action': 'get_playlist', 'url': url},
+        timeout: const Duration(minutes: 5));
+    if (result['success'] != true) throw Exception(result['error']);
+    return result;
+  }
+
+  Future<Map<String, dynamic>> repairPlaylistFolder(
+          String folder, List<String> files) =>
+      sendCommand({
+        'action': 'repair_playlist_folder',
+        'folder': folder,
+        'files': files
+      });
+
+  Future<void> startNativePlaylist(Map<String, dynamic> job) async {
+    final granted =
+        await _androidChannel.invokeMethod<bool>('ensure_storage_permission');
+    if (granted != true) throw Exception('Storage permission is required.');
+    await _androidChannel
+        .invokeMethod('start_playlist', {'job': jsonEncode(job)});
+    _nativePlaylistBusy = true;
+  }
+
+  Future<Map<String, dynamic>?> getNativePlaylist() async {
+    final result = await _androidChannel
+        .invokeMapMethod<String, dynamic>('get_playlist_job');
+    _nativePlaylistBusy = result?['status'] == 'running';
+    return result == null ? null : Map<String, dynamic>.from(result);
+  }
+
+  Future<void> removeNativePlaylistEntry(String jobId, String key) async {
+    await _androidChannel
+        .invokeMethod('remove_playlist_entry', {'job_id': jobId, 'key': key});
+  }
+
+  Future<void> openDownloadLocation(
+      {String? file,
+      String? folder,
+      String platform = 'youtube',
+      List<String>? files}) async {
+    if (isPublicWeb) {
+      if (file != null) {
+        final uri = _publicFileUri(file);
+        // Check expiration before asking the browser to save the attachment.
+        final response =
+            await http.head(uri).timeout(const Duration(seconds: 30));
+        if (response.statusCode == 404) throw WebFileExpiredException();
+        if (response.statusCode != 200) {
+          throw Exception(_httpError(response.statusCode, response.body));
+        }
+        saveBrowserFile(uri);
+      } else {
+        final response = await http
+            .post(Uri.parse('$_httpBackendUrl/archive'),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode({'folder': folder, 'files': files ?? []}))
+            .timeout(const Duration(minutes: 3));
+        if (response.statusCode != 200) {
+          throw Exception(_httpError(response.statusCode, response.body));
+        }
+        final result = jsonDecode(response.body) as Map;
+        saveBrowserFile(_publicFileUri(result['file'].toString()));
+      }
+      return;
+    }
+    final command = {'file': file, 'folder': folder, 'platform': platform};
+    if (RuntimePlatform.isAndroid) {
+      await _androidChannel.invokeMethod('open_download_location', command);
+      return;
+    }
+    if (kIsWeb) {
+      final response = await http.post(
+          Uri.parse('$_httpBackendUrl/open-location'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(command));
+      final data = jsonDecode(response.body) as Map;
+      if (data['success'] != true) {
+        throw Exception(data['error'] ?? 'Could not open file location.');
+      }
+      return;
+    }
+    final root = Directory(_downloadDirectory ?? await getDownloadDirectory());
+    final rootPath = await root.resolveSymbolicLinks();
+    String target;
+    if (file != null) {
+      if (!File(file).existsSync()) {
+        throw Exception('The downloaded file could not be found.');
+      }
+      target = await File(file).resolveSymbolicLinks();
+    } else {
+      final safe =
+          folder == null ? null : DownloadPaths.sanitizeFilename(folder);
+      final directory = Directory(
+          '$rootPath/${DownloadPaths.platformFolder(platform)}${safe == null ? '' : '/Playlists/$safe'}');
+      if (!directory.existsSync()) {
+        throw Exception('The download folder could not be found.');
+      }
+      target = await directory.resolveSymbolicLinks();
+    }
+    final prefix = '$rootPath${Platform.pathSeparator}';
+    if (!(RuntimePlatform.isWindows
+        ? target.toLowerCase().startsWith(prefix.toLowerCase())
+        : target.startsWith(prefix))) {
+      throw Exception('Invalid download location.');
+    }
+    if (RuntimePlatform.isWindows) {
+      await Process.start(
+          'explorer.exe', file == null ? [target] : ['/select,', target]);
+    } else if (RuntimePlatform.isMacOS) {
+      await Process.start('open', file == null ? [target] : ['-R', target]);
+    } else {
+      await Process.start(
+          'xdg-open', [file == null ? target : File(target).parent.path]);
+    }
+  }
+
+  Uri _publicFileUri(String value) {
+    final uri = Uri.base.resolve(value);
+    if (uri.origin != Uri.base.origin ||
+        !RegExp(r'^/api/files/[a-f0-9]{48}$').hasMatch(uri.path)) {
+      throw Exception('Invalid download link. Please prepare the video again.');
+    }
+    return uri;
+  }
+
+  String _httpError(int status, String body) {
+    try {
+      final data = jsonDecode(body) as Map;
+      final detail = data['detail'] ?? data['error'];
+      if (detail is String) return detail;
+    } catch (_) {}
+    return status == 429
+        ? 'The free service is busy. Please try again shortly.'
+        : 'The download service is unavailable. Please try again shortly.';
+  }
+
+  Future<void> _connectWebBackend() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 90));
+    do {
+      try {
+        final response = await http
+            .get(Uri.parse('$_httpBackendUrl/health'))
+            .timeout(const Duration(seconds: 20));
+        if (response.statusCode == 200 &&
+            jsonDecode(response.body)['ready'] == true) {
+          _isInitialized = true;
+          lastInitError = null;
+          return;
+        }
+      } catch (_) {}
+      await Future<void>.delayed(const Duration(seconds: 3));
+    } while (isPublicWeb && DateTime.now().isBefore(deadline));
+    throw StateError(lastInitError ??
+        'The download service is unavailable. Please try again shortly.');
+  }
+
+  Stream<DownloadProgress> downloadPlaylistEntry(
+      String url, String folder) async* {
+    final base = await getPlatformDownloadDirectory('youtube');
+    final safe = DownloadPaths.sanitizeFilename(folder);
+    if (safe.isEmpty) throw Exception('Please enter a folder name.');
+    final output = kIsWeb
+        ? '$base/Playlists/$safe'
+        : '$base${Platform.pathSeparator}Playlists${Platform.pathSeparator}$safe';
+    if (!kIsWeb) await Directory(output).create(recursive: true);
+    _playlistFolder = safe;
+    try {
+      yield* downloadVideo(url, 'youtube', DownloadPaths.bestQuality, output);
+    } finally {
+      _playlistFolder = null;
     }
   }
 
@@ -653,6 +971,7 @@ class PythonService {
   Future<String> getPlatformDownloadDirectory(String platform) async {
     final base = await getDownloadDirectory();
     final folder = DownloadPaths.platformFolder(platform);
+    if (kIsWeb) return '$base/$folder';
     final dir = Directory('$base${Platform.pathSeparator}$folder');
     try {
       if (!dir.existsSync()) {
@@ -666,6 +985,7 @@ class PythonService {
 
   Future<void> dispose() async {
     try {
+      if (_restartInProgress != null) await _restartInProgress;
       await _stdoutSubscription?.cancel();
       _stdoutSubscription = null;
       await _stderrSubscription?.cancel();
@@ -687,6 +1007,18 @@ class PythonService {
   Future<Map<String, dynamic>> _handleAndroidLocalCommand(
       Map<String, dynamic> command) async {
     final action = command['action'];
+    if (action == 'get_auth_status' || action == 'configure_auth') {
+      final result = await _androidChannel.invokeMapMethod<String, dynamic>(
+          action as String, command);
+      return Map<String, dynamic>.from(
+          result ?? {'success': false, 'error': 'No response'});
+    }
+    if (action == 'get_playlist') {
+      final result = await _androidChannel.invokeMapMethod<String, dynamic>(
+          'get_playlist', {'url': command['url']});
+      return Map<String, dynamic>.from(
+          result ?? {'success': false, 'error': 'No response'});
+    }
 
     if (action == 'get_download_dir') {
       try {
@@ -778,7 +1110,7 @@ class PythonService {
   /// owned by the native foreground service. Used to restore the UI after an
   /// activity recreation without starting a duplicate download.
   Future<Map<String, dynamic>?> getActiveDownload() async {
-    if (!Platform.isAndroid) return null;
+    if (!RuntimePlatform.isAndroid) return null;
     try {
       final result = await _androidChannel
           .invokeMethod<Map<dynamic, dynamic>>('get_active_download');
@@ -792,7 +1124,22 @@ class PythonService {
 
   /// Ask the native foreground service to cancel the active download.
   Future<void> cancelDownload() async {
-    if (!Platform.isAndroid) return;
+    if (kIsWeb && _downloadBusy) {
+      await http
+          .post(Uri.parse('$_httpBackendUrl/cancel'),
+              headers: {'Content-Type': 'application/json'}, body: '{}')
+          .timeout(const Duration(seconds: 10));
+      return;
+    }
+    if (!kIsWeb &&
+        !RuntimePlatform.isAndroid &&
+        !RuntimePlatform.isIOS &&
+        _downloadBusy) {
+      await _restartDesktopBackend(
+          reason: DownloadCancelledException('Download cancelled'));
+      return;
+    }
+    if (!RuntimePlatform.isAndroid) return;
     try {
       await _androidChannel.invokeMethod('cancel_download');
     } on PlatformException catch (e) {
@@ -800,11 +1147,11 @@ class PythonService {
     }
   }
 
-  /// Persist the complete Nazzelha Sawa queue snapshot into the native
+  /// Persist the complete Nazzelha queue snapshot into the native
   /// foreground service's durable storage (Android only). This lets the queue
   /// survive process death and be restored without duplicating active tasks.
   Future<void> saveQueueSnapshot(List<Map<String, dynamic>> tasks) async {
-    if (!Platform.isAndroid) return;
+    if (!RuntimePlatform.isAndroid) return;
     try {
       await _androidChannel.invokeMethod('save_queue', {
         'queue': jsonEncode(tasks),
@@ -817,14 +1164,12 @@ class PythonService {
   /// Read the queue snapshot persisted by the native foreground service
   /// (Android only). Returns null when unavailable.
   Future<List<Map<String, dynamic>>?> getQueueSnapshot() async {
-    if (!Platform.isAndroid) return null;
+    if (!RuntimePlatform.isAndroid) return null;
     try {
       final result =
           await _androidChannel.invokeMethod<List<dynamic>>('get_queue');
       if (result == null) return null;
-      return result
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+      return result.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     } on PlatformException catch (e) {
       logger.w('[PythonService] get_queue failed: ${e.message}');
       return null;
@@ -834,7 +1179,7 @@ class PythonService {
   /// Open a downloaded media item on Android. Supports content:// URIs
   /// returned by MediaStore persistence.
   Future<void> openMedia(String uriOrPath) async {
-    if (Platform.isAndroid && uriOrPath.startsWith('content://')) {
+    if (RuntimePlatform.isAndroid && uriOrPath.startsWith('content://')) {
       await _androidChannel.invokeMethod('open_media', {'uri': uriOrPath});
       return;
     }
@@ -842,7 +1187,7 @@ class PythonService {
   }
 
   Future<Directory> _defaultDownloadDirectory() async {
-    if (Platform.isAndroid) {
+    if (RuntimePlatform.isAndroid) {
       final downloads = await getDownloadsDirectory();
       final root = downloads ?? Directory('/storage/emulated/0/Download');
       final dir = Directory('${root.path}${Platform.pathSeparator}Nazzelha');
@@ -888,13 +1233,15 @@ class PythonService {
     return const [360];
   }
 
-  Future<String> _readNextResponse({required Duration timeout}) async {
-    if (_responseBuffer == null) {
+  Future<String> _readNextResponse(
+      {required Duration timeout, PythonResponseBuffer? sourceBuffer}) async {
+    final buffer = sourceBuffer ?? _responseBuffer;
+    if (buffer == null) {
       throw StateError('Python stdout buffer is not initialized');
     }
 
     while (true) {
-      final line = await _responseBuffer!.readNext(timeout: timeout);
+      final line = await buffer.readNext(timeout: timeout);
       final trimmed = line.trim();
 
       if (trimmed.isEmpty) {
@@ -928,7 +1275,7 @@ class PythonService {
 
     final projectRoot = Directory.current.path;
     final venvCandidates = <String>[];
-    if (Platform.isWindows) {
+    if (RuntimePlatform.isWindows) {
       venvCandidates.addAll([
         '$projectRoot${Platform.pathSeparator}.venv${Platform.pathSeparator}Scripts${Platform.pathSeparator}python.exe',
         '$projectRoot${Platform.pathSeparator}venv${Platform.pathSeparator}Scripts${Platform.pathSeparator}python.exe',
@@ -956,7 +1303,7 @@ class PythonService {
     }
 
     final candidates = <String>[];
-    if (Platform.isWindows) {
+    if (RuntimePlatform.isWindows) {
       candidates.addAll(['py', 'python', 'python3']);
     } else {
       candidates.addAll(['python3', 'python']);
@@ -980,7 +1327,7 @@ class PythonService {
   String _getPythonBackendPath() {
     final fileCandidates = <String>[];
 
-    if (!Platform.isAndroid && !Platform.isIOS) {
+    if (!RuntimePlatform.isAndroid && !RuntimePlatform.isIOS) {
       final executablePath = Platform.resolvedExecutable;
       final executableFile = File(executablePath);
       final executableDir = executableFile.existsSync()

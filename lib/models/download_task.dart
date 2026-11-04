@@ -6,7 +6,7 @@ class QueueErrorCodes {
   static const String platformMismatch = 'platformMismatch';
 }
 
-/// Status lifecycle for a single download container in the Nazzelha Sawa queue.
+/// Status lifecycle for a single download container in the Nazzelha queue.
 enum TaskStatus {
   /// Waiting for the user to configure / approve it.
   pending,
@@ -69,6 +69,10 @@ class DownloadTask {
 
   /// User-supplied "Save as" filename (may be empty = use default title).
   String filename;
+  int quality;
+  List<int> availableQualities;
+  bool loadingQualities = false;
+  String? qualityError;
 
   TaskStatus status;
   int progress;
@@ -86,6 +90,8 @@ class DownloadTask {
     this.platform = 'youtube',
     this.mode = 'video',
     this.filename = '',
+    this.quality = 4320,
+    this.availableQualities = const [],
     this.status = TaskStatus.pending,
     this.progress = 0,
     this.progressKnown = false,
@@ -103,6 +109,8 @@ class DownloadTask {
         platform: platform,
         mode: mode,
         filename: filename,
+        quality: quality,
+        availableQualities: List.of(availableQualities),
         status: status,
         progress: progress,
         progressKnown: progressKnown,
@@ -120,6 +128,8 @@ class DownloadTask {
         'platform': platform,
         'mode': mode,
         'filename': filename,
+        'quality': quality,
+        'availableQualities': availableQualities,
         'status': status.name,
         'progress': progress,
         'progressKnown': progressKnown,
@@ -137,6 +147,11 @@ class DownloadTask {
         platform: json['platform']?.toString() ?? 'youtube',
         mode: json['mode']?.toString() ?? 'video',
         filename: json['filename']?.toString() ?? '',
+        quality: (json['quality'] as num?)?.toInt() ?? 4320,
+        availableQualities: (json['availableQualities'] as List? ?? [])
+            .whereType<num>()
+            .map((q) => q.toInt())
+            .toList(),
         status: TaskStatus.fromName(json['status']?.toString()),
         progress: ((json['progress'] as num?) ?? 0).toInt(),
         progressKnown: json['progressKnown'] == true,

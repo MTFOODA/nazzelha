@@ -2,7 +2,7 @@
 # YouTube player clients whose media URLs return HTTP 403 during download
 # ("unable to download video data: HTTP Error 403: Forbidden") for both normal
 # videos and Shorts when no JavaScript runtime is available.
-yt-dlp>=2026.8.19
+yt-dlp[default]==2026.10.26
 # Official yt-dlp JS challenge solver, required together with a JavaScript
 # runtime (Deno by default; Node.js is enabled on Windows when available).
 yt-dlp-ejs>=0.8.0
@@ -10,3 +10,7 @@ yt-dlp-ejs>=0.8.0
 # anti-bot challenge pages. Without it the TikTok fallback detections simply
 # skip impersonation instead of crashing.
 curl-cffi>=0.16.0
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+# Portable desktop FFmpeg fallback when ffmpeg is not installed on PATH.
+imageio-ffmpeg==0.6.0

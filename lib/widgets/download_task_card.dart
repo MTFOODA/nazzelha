@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/download_task.dart';
 import '../services/download_paths.dart';
+import '../services/python_service.dart';
+import '../services/queue_controller.dart';
 import '../theme/colors.dart';
 import 'custom_dropdown.dart';
+import 'app_motion.dart';
+import 'download_location_button.dart';
 
-/// A compact, self-contained download container for the Nazzelha Sawa queue.
+/// A compact, self-contained download container for the Nazzelha queue.
 class DownloadTaskCard extends StatefulWidget {
   final DownloadTask task;
   final bool editable;
@@ -15,6 +20,8 @@ class DownloadTaskCard extends StatefulWidget {
   final void Function(String url) onUrlChanged;
   final void Function(String filename) onFilenameChanged;
   final void Function(String mode) onModeChanged;
+  final void Function(int quality) onQualityChanged;
+  final Future<void> Function() onFetchQualities;
   final Future<void> Function() onStart;
   final Future<void> Function() onResume;
   final Future<void> Function() onRemove;
@@ -27,6 +34,8 @@ class DownloadTaskCard extends StatefulWidget {
     required this.onUrlChanged,
     required this.onFilenameChanged,
     required this.onModeChanged,
+    required this.onQualityChanged,
+    required this.onFetchQualities,
     required this.onStart,
     required this.onResume,
     required this.onRemove,
@@ -89,6 +98,7 @@ class _DownloadTaskCardState extends State<DownloadTaskCard> {
               children: [
                 Expanded(
                   child: CustomDropdown<String>(
+                    enabled: editable,
                     value: task.platform,
                     items: DownloadPaths.supportedPlatforms,
                     itemLabels: DownloadPaths.supportedPlatforms
@@ -106,6 +116,7 @@ class _DownloadTaskCardState extends State<DownloadTaskCard> {
             const SizedBox(height: 12),
             TextField(
               controller: _urlController,
+              textDirection: TextDirection.ltr,
               enabled: editable,
               decoration: InputDecoration(
                 hintText: strings.pasteLink,
@@ -115,6 +126,56 @@ class _DownloadTaskCardState extends State<DownloadTaskCard> {
               onChanged: widget.onUrlChanged,
             ),
             const SizedBox(height: 12),
+            if (task.mode == 'video') ...[
+              Row(children: [
+                Expanded(
+                    child: DropdownButtonFormField<int>(
+                        key: ValueKey(
+                            '${task.id}-${task.quality}-${task.availableQualities.join(',')}'),
+                        initialValue: task.quality,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                            labelText: strings.isAr ? 'الجودة' : 'Quality',
+                            isDense: true),
+                        items: {
+                          DownloadPaths.bestQuality,
+                          ...task.availableQualities,
+                          task.quality
+                        }
+                            .map((q) => DropdownMenuItem(
+                                value: q,
+                                child: Text(q == DownloadPaths.bestQuality
+                                    ? strings.text('Best available')
+                                    : '${q}p')))
+                            .toList(),
+                        onChanged: editable && !task.loadingQualities
+                            ? (q) {
+                                if (q != null) widget.onQualityChanged(q);
+                              }
+                            : null)),
+                const SizedBox(width: 8),
+                IconButton(
+                    tooltip: strings.isAr
+                        ? 'عرض الجودات المتاحة'
+                        : 'Find available qualities',
+                    onPressed: editable && !task.loadingQualities
+                        ? widget.onFetchQualities
+                        : null,
+                    icon: task.loadingQualities
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.refresh_rounded)),
+              ]),
+              if (task.qualityError != null)
+                Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(strings.errorMessage(task.qualityError!),
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.error))),
+              const SizedBox(height: 12),
+            ],
             TextField(
               controller: _filenameController,
               enabled: editable,
@@ -132,11 +193,19 @@ class _DownloadTaskCardState extends State<DownloadTaskCard> {
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: isDark ? AppColors.errorDark : AppColors.errorLight,
-                ),
+                ).copyWith(fontFamilyFallback: const ['Tajawal']),
               ),
             ],
             const SizedBox(height: 12),
             _progressArea(task, isDark),
+            if (task.outputFile != null && task.status == TaskStatus.completed)
+              DownloadLocationButton(
+                  file: task.outputFile,
+                  onExpired: () => context
+                      .read<NazzelhaQueueController>()
+                      .expireWebFile(task.id),
+                  platform: task.platform,
+                  labelled: true),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -158,7 +227,7 @@ class _DownloadTaskCardState extends State<DownloadTaskCard> {
       );
     }
     if (task.error != null && task.error!.isNotEmpty) {
-      return task.error;
+      return strings.errorMessage(task.error!);
     }
     return null;
   }
@@ -192,30 +261,33 @@ class _DownloadTaskCardState extends State<DownloadTaskCard> {
     required VoidCallback onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return OutlinedButton(
-      onPressed: enabled ? onTap : null,
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        minimumSize: const Size(0, 0),
-        backgroundColor: selected
-            ? AppColors.primaryLight.withValues(alpha: 0.12)
-            : null,
-        side: BorderSide(
-          color: selected
-              ? AppColors.primaryLight
-              : (isDark ? AppColors.borderDark : AppColors.borderLight),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: selected ? AppColors.primaryLight : null,
-        ),
-      ),
-    );
+    return PressMotion(
+        enabled: enabled,
+        child: OutlinedButton(
+          onPressed: enabled ? onTap : null,
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            minimumSize: const Size(0, 0),
+            backgroundColor: selected
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                : null,
+            side: BorderSide(
+              color: selected
+                  ? Theme.of(context).colorScheme.primary
+                  : (isDark ? AppColors.borderDark : AppColors.borderLight),
+            ),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: selected ? Theme.of(context).colorScheme.primary : null,
+            ).copyWith(fontFamilyFallback: const ['Tajawal']),
+          ),
+        ));
   }
 
   Widget _statusPill(TaskStatus status, Color color, AppStrings strings) {
@@ -226,12 +298,15 @@ class _DownloadTaskCardState extends State<DownloadTaskCard> {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        strings.statusLabel(status),
+        status == TaskStatus.completed &&
+                context.read<PythonService>().isPublicWeb
+            ? (strings.isAr ? 'جاهز للحفظ' : 'Ready to save')
+            : strings.statusLabel(status),
         style: GoogleFonts.poppins(
           fontSize: 12,
           fontWeight: FontWeight.w600,
           color: color,
-        ),
+        ).copyWith(fontFamilyFallback: const ['Tajawal']),
       ),
     );
   }
@@ -263,7 +338,7 @@ class _DownloadTaskCardState extends State<DownloadTaskCard> {
             color: isDark
                 ? AppColors.textSecondaryDark
                 : AppColors.textSecondaryLight,
-          ),
+          ).copyWith(fontFamilyFallback: const ['Tajawal']),
         ),
       ],
     );
@@ -273,8 +348,8 @@ class _DownloadTaskCardState extends State<DownloadTaskCard> {
     final needsResume = task.status == TaskStatus.paused ||
         task.status == TaskStatus.failed ||
         task.status == TaskStatus.cancelled;
-    final canAct = needsResume ||
-        task.status == TaskStatus.pending;
+    final canAct = !task.loadingQualities &&
+        (needsResume || task.status == TaskStatus.pending);
 
     if (task.status.isActive ||
         task.status == TaskStatus.queued ||
@@ -284,31 +359,28 @@ class _DownloadTaskCardState extends State<DownloadTaskCard> {
 
     final label = needsResume ? strings.resume : strings.start;
     final onPressed = needsResume ? widget.onResume : widget.onStart;
-    return ElevatedButton.icon(
-      onPressed: canAct ? () async => onPressed() : null,
-      icon: const Icon(Icons.play_arrow, size: 18),
-      label: Text(
-        label,
-        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
-      ),
-    );
+    return AppActionButton(
+        label: label,
+        icon: Icons.play_arrow_rounded,
+        onPressed: canAct ? () async => onPressed() : null);
   }
 
-  static Color _statusColor(TaskStatus status) {
+  Color _statusColor(TaskStatus status) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     switch (status) {
       case TaskStatus.pending:
-        return AppColors.textSecondaryLight;
+        return Theme.of(context).colorScheme.onSurfaceVariant;
       case TaskStatus.queued:
-        return AppColors.warningLight;
+        return dark ? AppColors.warningDark : const Color(0xFF925A00);
       case TaskStatus.downloading:
       case TaskStatus.merging:
-        return AppColors.primaryLight;
+        return Theme.of(context).colorScheme.primary;
       case TaskStatus.paused:
-        return AppColors.warningLight;
+        return dark ? AppColors.warningDark : const Color(0xFF925A00);
       case TaskStatus.completed:
-        return AppColors.successLight;
+        return dark ? AppColors.successDark : const Color(0xFF067454);
       case TaskStatus.failed:
-        return AppColors.errorLight;
+        return Theme.of(context).colorScheme.error;
       case TaskStatus.cancelled:
         return AppColors.textSecondaryLight;
     }

@@ -44,6 +44,7 @@ class DownloadForegroundService : Service() {
         const val TAG = "NazzelhaDownload"
 
         const val ACTION_START = "com.example.nazzelha.action.DOWNLOAD_START"
+        const val ACTION_PLAYLIST = "com.example.nazzelha.action.PLAYLIST_START"
         const val ACTION_CANCEL = "com.example.nazzelha.action.DOWNLOAD_CANCEL"
         const val ACTION_PROGRESS = "com.example.nazzelha.action.DOWNLOAD_PROGRESS"
         const val ACTION_RESULT = "com.example.nazzelha.action.DOWNLOAD_RESULT"
@@ -63,6 +64,43 @@ class DownloadForegroundService : Service() {
         private const val PREFS = "nazzelha_download_state"
         private const val KEY_STATE = "current_task"
         private const val KEY_QUEUE = "queue"
+        private const val KEY_PLAYLIST = "playlist_job"
+        @Volatile var isRunning = false
+            private set
+        private val playlistLock = Any()
+        fun entryKey(entry: JSONObject, index: Int): String = entry.optString("key",
+            "${entry.optInt("index", index)}:${entry.optString("id", index.toString())}")
+
+        fun isEntryRemoved(context: Context, jobId: String, key: String): Boolean =
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getStringSet("removed_$jobId", emptySet())?.contains(key) == true
+
+        fun removePlaylistEntry(context: Context, jobId: String, key: String) = synchronized(playlistLock) {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val removed = HashSet(prefs.getStringSet("removed_$jobId", emptySet()) ?: emptySet())
+            removed.add(key)
+            prefs.edit().putStringSet("removed_$jobId", removed).commit()
+            val raw = loadPlaylist(context)
+            if (raw != null) {
+                val saved = JSONObject(raw)
+                if (saved.optString("id") == jobId) savePlaylist(context, saved)
+            }
+        }
+
+        fun savePlaylist(context: Context, job: JSONObject) = synchronized(playlistLock) {
+            val entries = job.optJSONArray("entries") ?: JSONArray()
+            for (i in 0 until entries.length()) {
+                val entry = entries.getJSONObject(i)
+                if (isEntryRemoved(context, job.optString("id"), entryKey(entry, i))) {
+                    entry.put("removed", true).put("status", "removed")
+                }
+            }
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putString(KEY_PLAYLIST, job.toString()).commit()
+        }
+
+        fun loadPlaylist(context: Context): String? =
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_PLAYLIST, null)
 
         /** Authoritative, process-surviving task state (also persisted). */
         @Volatile
@@ -95,13 +133,13 @@ class DownloadForegroundService : Service() {
                 .edit().remove(KEY_STATE).apply()
         }
 
-        /** Persist the complete Nazzelha Sawa queue snapshot (JSON array). */
+        /** Persist the complete Nazzelha queue snapshot (JSON array). */
         fun saveQueue(context: Context, queueJson: String) {
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit().putString(KEY_QUEUE, queueJson).apply()
         }
 
-        /** Read the persisted Nazzelha Sawa queue snapshot, or null. */
+        /** Read the persisted Nazzelha queue snapshot, or null. */
         fun loadQueue(context: Context): String? {
             return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getString(KEY_QUEUE, null)
@@ -170,6 +208,15 @@ class DownloadForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            ACTION_PLAYLIST -> {
+                if (running.compareAndSet(false, true)) {
+                    isRunning = true
+                    cancelled.set(false)
+                    startForegroundWithNotification("Downloading playlist…")
+                    acquireWakeLock()
+                    executor.execute { runPlaylist() }
+                }
+            }
             ACTION_START -> {
                 val taskId = intent.getStringExtra(EXTRA_TASK_ID)
                     ?: System.currentTimeMillis().toString()
@@ -180,6 +227,7 @@ class DownloadForegroundService : Service() {
                 val outputPath = intent.getStringExtra(EXTRA_OUTPUT_PATH) ?: ""
                 val filename = intent.getStringExtra(EXTRA_FILENAME)?.takeIf { it.isNotBlank() }
                 if (running.compareAndSet(false, true)) {
+                    isRunning = true
                     cancelled.set(false)
                     startForegroundWithNotification("Downloading\u2026")
                     acquireWakeLock()
@@ -210,6 +258,7 @@ class DownloadForegroundService : Service() {
     override fun onDestroy() {
         releaseWakeLock()
         running.set(false)
+        isRunning = false
         super.onDestroy()
     }
 
@@ -271,20 +320,37 @@ class DownloadForegroundService : Service() {
 
     private fun runDownload(taskId: String, url: String, platform: String,
                             quality: Int, mode: String, outputPath: String,
-                            filename: String?) {
+                            filename: String?, job: JSONObject? = null,
+                            entry: JSONObject? = null): Map<String, Any?> {
+        var lastPersist = 0L
+        fun entryRemoved(): Boolean = job != null && entry != null &&
+            isEntryRemoved(applicationContext, job.optString("id"), entryKey(entry, 0))
         val sink = object : ProgressSink {
+            override fun isCancelled(): Boolean = cancelled.get() || entryRemoved()
             override fun send(json: String) {
+                if (isCancelled()) throw IOException("Download cancelled")
                 val payload = try { jsonToMap(json) } catch (e: Exception) { null }
                 val percent = ((payload?.get("percent") as? Number)?.toDouble() ?: 0.0)
                 currentState?.let { it["phase"] = "downloading"; it["percent"] = percent }
-                broadcast(ACTION_PROGRESS, json)
+                if (job != null && entry != null) {
+                    entry.put("progress", percent.toInt().coerceIn(0, 99))
+                    val now = System.currentTimeMillis()
+                    if (now - lastPersist > 1000) {
+                        savePlaylist(applicationContext, job)
+                        lastPersist = now
+                    }
+                }
+                val event = JSONObject(json).put("url", url).put("task_id", taskId)
+                if (job != null) event.put("playlist_id", job.optString("id"))
+                broadcast(ACTION_PROGRESS, event.toString())
             }
         }
 
         val result: Map<String, Any?> = try {
             Log.i(TAG, "Download started task=$taskId url=$url quality=$quality mode=$mode")
             val response = downloadVideo(url, platform, quality, outputPath, sink, mode)
-            persistDownload(response, platform, filename).also {
+            if (cancelled.get() || entryRemoved()) throw IOException("Download cancelled")
+            persistDownload(response, platform, filename, job?.optString("folder")).also {
                 Log.i(TAG, "Download terminal result: $it")
             }
         } catch (e: Exception) {
@@ -296,7 +362,7 @@ class DownloadForegroundService : Service() {
             )
         }
 
-        val cancelledFlag = cancelled.get() || result["cancelled"] == true
+        val cancelledFlag = cancelled.get() || entryRemoved() || result["cancelled"] == true
         val phase = when {
             cancelledFlag -> "cancelled"
             result["success"] == true -> "completed"
@@ -311,14 +377,66 @@ class DownloadForegroundService : Service() {
         terminal["output_path"] = outputPath
         terminal["phase"] = phase
         terminal.putAll(result)
+        if (job != null) terminal["playlist_id"] = job.optString("id")
         saveState(applicationContext, terminal)
 
+        if (job == null) {
+            releaseWakeLock()
+            running.set(false)
+            isRunning = false
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
         broadcast(ACTION_RESULT, JSONObject(terminal).toString())
-        mainHandler.post { notifyTerminal(phase, (result["error"] as? String).orEmpty()) }
+        if (job == null) mainHandler.post { notifyTerminal(phase, (result["error"] as? String).orEmpty()) }
+        return terminal
+    }
 
-        releaseWakeLock()
-        running.set(false)
-        stopSelf()
+    private fun runPlaylist() {
+        var job: JSONObject? = null
+        try {
+            job = JSONObject(loadPlaylist(applicationContext) ?: throw IOException("No playlist saved"))
+            job.put("status", "running")
+            savePlaylist(applicationContext, job)
+            val entries = job.getJSONArray("entries")
+            val onlyEntry = job.optString("only_entry")
+            for (i in 0 until entries.length()) {
+                if (cancelled.get()) break
+                val entry = entries.getJSONObject(i)
+                val key = entryKey(entry, i)
+                entry.put("key", key)
+                if (entry.optBoolean("removed") || isEntryRemoved(applicationContext, job.optString("id"), key) ||
+                    entry.optString("status") == "completed" || entry.optBoolean("unavailable") ||
+                    (onlyEntry.isNotEmpty() && onlyEntry != key)) continue
+                entry.put("status", "downloading").put("progress", 0).remove("error")
+                savePlaylist(applicationContext, job)
+                val result = runDownload("${job.optString("id")}_$i", entry.getString("url"),
+                    "youtube", 4320, "video", "", null, job, entry)
+                entry.put("status", if (isEntryRemoved(applicationContext, job.optString("id"), key)) "removed"
+                    else if (cancelled.get()) "paused" else result["phase"])
+                entry.put("progress", if (result["success"] == true) 100 else 0)
+                entry.put("file", result["file"]).put("error", result["error"])
+                entry.put("display_path", result["display_path"])
+                savePlaylist(applicationContext, job)
+            }
+            val remaining = (0 until entries.length()).any {
+                val entry = entries.getJSONObject(it)
+                !entry.optBoolean("removed") && entry.optString("status") != "completed"
+            }
+            job.remove("only_entry")
+            job.put("status", if (cancelled.get()) "paused" else if (remaining) "partial" else "completed")
+        } catch (e: Exception) {
+            Log.e(TAG, "Playlist failed", e)
+            job?.put("status", "failed")?.put("error", e.message)
+        } finally {
+            job?.let { savePlaylist(applicationContext, it) }
+            releaseWakeLock()
+            running.set(false)
+            isRunning = false
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            mainHandler.post { notifyTerminal(if (cancelled.get()) "cancelled" else "completed", "") }
+        }
     }
 
     private fun notifyTerminal(phase: String, error: String) {
@@ -376,7 +494,7 @@ class DownloadForegroundService : Service() {
         module.callAttr(
             "initialize",
             ffmpeg["nativeLibDir"], ffmpeg["binDir"], ffmpeg["libDir"],
-            ffmpeg["abi"], pyTempDir.absolutePath
+            ffmpeg["abi"], pyTempDir.absolutePath, File(filesDir, "sessions").absolutePath
         )
     }
 
@@ -510,12 +628,16 @@ class DownloadForegroundService : Service() {
     }
 
     private fun persistDownload(responseJson: String, platform: String,
-                                filename: String?): Map<String, Any?> {
+                                filename: String?, folder: String? = null): Map<String, Any?> {
         val obj = JSONObject(responseJson)
         if (obj.optBoolean("success") != true) return jsonToMap(responseJson)
         val srcPath = obj.optString("file")
         val titleName = obj.optString("filename").ifEmpty { "video.mp4" }
-        val displayName = safeDisplayName(filename) ?: safeDisplayName(titleName) ?: "video.mp4"
+        val requestedName = safeDisplayName(filename)
+        val actualExtension = File(srcPath).extension
+        val displayName = if (requestedName != null && actualExtension.isNotBlank())
+            requestedName.substringBeforeLast('.') + "." + actualExtension
+            else safeDisplayName(titleName) ?: "video.mp4"
         val title = obj.optString("title")
         val size = obj.optLong("size")
         val diagnostics = obj.optJSONObject("diagnostics")
@@ -531,9 +653,9 @@ class DownloadForegroundService : Service() {
         }
         return try {
             val persisted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                persistViaMediaStore(src, displayName, platform)
+                persistViaMediaStore(src, displayName, platform, folder)
             } else {
-                persistLegacy(src, displayName, platform)
+                persistLegacy(src, displayName, platform, folder)
             }
             src.delete()
             Log.i(TAG, "Download persisted to: ${persisted.first} (${persisted.second})")
@@ -566,11 +688,16 @@ class DownloadForegroundService : Service() {
         return cleaned.ifBlank { null }
     }
 
-    private fun persistViaMediaStore(src: File, displayName: String, platform: String): Pair<String, String> {
+    private fun publicSubfolder(platform: String, folder: String?): String {
+        val base = "Nazzelha/${platformFolder(platform)}"
+        return if (folder.isNullOrBlank()) base else "$base/Playlists/${safeDisplayName(folder) ?: "Playlist"}"
+    }
+
+    private fun persistViaMediaStore(src: File, displayName: String, platform: String, folder: String?): Pair<String, String> {
         val resolver = contentResolver
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         val mime = mimeFor(displayName)
-        val subfolder = "Nazzelha/${platformFolder(platform)}"
+        val subfolder = publicSubfolder(platform, folder)
         fun valuesFor(name: String) = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
             put(MediaStore.MediaColumns.MIME_TYPE, mime)
@@ -599,10 +726,10 @@ class DownloadForegroundService : Service() {
         return Pair("$relativePath/$name", uri.toString())
     }
 
-    private fun persistLegacy(src: File, displayName: String, platform: String): Pair<String, String> {
+    private fun persistLegacy(src: File, displayName: String, platform: String, folder: String?): Pair<String, String> {
         val destDir = File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            "Nazzelha/${platformFolder(platform)}"
+            publicSubfolder(platform, folder)
         )
         if (!destDir.exists()) destDir.mkdirs()
         var dest = File(destDir, displayName)
@@ -616,7 +743,7 @@ class DownloadForegroundService : Service() {
         }
         src.inputStream().use { input -> dest.outputStream().use { output -> input.copyTo(output) } }
         MediaScannerConnection.scanFile(this, arrayOf(dest.absolutePath), arrayOf(mimeFor(dest.name)), null)
-        return Pair("Downloads/Nazzelha/${platformFolder(platform)}/${dest.name}", dest.absolutePath)
+        return Pair("Downloads/${publicSubfolder(platform, folder)}/${dest.name}", dest.absolutePath)
     }
 
     private fun mimeFor(fileName: String): String {

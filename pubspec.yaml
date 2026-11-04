@@ -2,7 +2,7 @@ name: nazzelha
 description: A modern Flutter desktop application for downloading videos from YouTube and Facebook.
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -22,8 +22,15 @@ dependencies:
   shared_preferences: ^2.5.5
   http: ^1.6.0
   open_file: ^3.3.1
+  url_launcher: ^6.3.3
+  web: ^1.1.2
 
 dev_dependencies:
+  image: 4.9.2
+  flutter_driver:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
@@ -37,8 +44,19 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: Tajawal
+      fonts:
+        - asset: assets/fonts/Tajawal-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Tajawal-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Tajawal-Bold.ttf
+          weight: 700
   assets:
+    - assets/fonts/
     - assets/logo/nazzelha.png
+    - assets/logo/nazzelha-v2.png
     # NOTE: assets/logo/nazzelha_splash.png is a 480x480 build-time input for
     # flutter_native_splash generation only (same logo design, resized) and is
     # intentionally NOT bundled as a Flutter asset to avoid duplicate assets.
@@ -54,12 +72,12 @@ flutter:
 # splash so the 240dp system splash icon stays crisp.
 flutter_native_splash:
   color: "#FFFFFF"
-  color_dark: "#0F172A"
-  image: assets/logo/nazzelha_splash.png
+  color_dark: "#0A1120"
+  image: assets/logo/nazzelha_splash-v2.png
   android: true
   ios: false
   web: false
   android_12:
     color: "#FFFFFF"
-    color_dark: "#0F172A"
-    image: assets/logo/nazzelha.png
+    color_dark: "#0A1120"
+    image: assets/logo/nazzelha-v2.png

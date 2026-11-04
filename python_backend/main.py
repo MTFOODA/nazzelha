@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from downloader import VideoDownloader, validate_url
+from media_core import extract_playlist, configure_auth, auth_status, repair_playlist_folder
 
 
 def send_progress_event(progress: Dict[str, Any]) -> None:
@@ -135,6 +136,12 @@ def handle_get_download_dir(command: Dict[str, Any]) -> Dict[str, Any]:
 
 
 COMMAND_HANDLERS = {
+    "repair_playlist_folder": lambda command: repair_playlist_folder(
+        Path(VideoDownloader.get_downloads_directory()) / 'YouTube' / 'Playlists',
+        command.get('folder', ''), command.get('files', [])),
+    "configure_auth": configure_auth,
+    "get_auth_status": lambda command: auth_status(),
+    "get_playlist": lambda command: extract_playlist(command.get('url', '')),
     "get_qualities": handle_get_qualities,
     "download": handle_download,
     "get_download_dir": handle_get_download_dir,
@@ -179,6 +186,11 @@ def process_command(line: str) -> None:
 
 def main():
     """Main service loop - read commands from stdin and process them."""
+    # Windows pipes otherwise inherit the active ANSI code page. Dart sends
+    # UTF-8 JSON; decoding Arabic paths as cp1252 creates a second, garbled folder.
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(encoding='utf-8', errors='strict')
     try:
         # Send ready signal
         send_response({"ready": True})

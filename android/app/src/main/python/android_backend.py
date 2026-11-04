@@ -23,6 +23,8 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 from typing import Dict, Any, Optional, List
+from media_core import extraction_options, extract_media, extract_playlist, final_filepath, PublicMediaUnavailable
+from media_core import configure_cookie_directory, configure_auth, auth_status
 
 try:
     import yt_dlp
@@ -243,7 +245,7 @@ def _probe_tikTok_page(url: str, headers: Optional[Dict[str, str]] = None) -> Di
 
 def initialize(native_lib_dir: str = "", ffmpeg_bin_dir: str = "",
                ffmpeg_lib_dir: str = "", abi: str = "unknown",
-               temp_dir: str = "") -> str:
+               temp_dir: str = "", cookies_dir: str = "") -> str:
     """
     Initialize the Android Python backend and return a JSON status string.
 
@@ -256,6 +258,8 @@ def initialize(native_lib_dir: str = "", ffmpeg_bin_dir: str = "",
     Python/yt-dlp temporary files (never /tmp on Android).
     """
     global _FFMPEG_BIN_DIR, _FFMPEG_LIB_DIR, _ANDROID_ABI
+    if cookies_dir:
+        configure_cookie_directory(cookies_dir)
     _ensure_app_temp()
     try:
         if not yt_dlp:
@@ -377,6 +381,8 @@ def classify_error(error_msg: str, phase: str = "extraction") -> str:
     expired signed URL).
     """
     m = (error_msg or "").lower()
+    if 'proxyerror' in m or 'tunnel connection failed' in m:
+        return 'NETWORK_ERROR'
 
     if any(k in m for k in _FORMAT_KEYWORDS):
         return "FORMAT_UNAVAILABLE"
@@ -702,6 +708,8 @@ def _failure_payload(exc: BaseException, code: str, phase: str,
     }
     if extra:
         payload.update(extra)
+    if isinstance(exc, PublicMediaUnavailable):
+        payload['error'] = str(exc)
 
     # Full trace to logcat for development tracing (secrets already excluded -
     # tracebacks of yt-dlp DownloadErrors contain only public error text).
@@ -847,6 +855,9 @@ def _extract_tiktok(
             "socket_timeout": 30,
             "logger": log,
         }
+        cookie = extraction_options('tiktok').get('cookiefile')
+        if cookie:
+            opts['cookiefile'] = cookie
         if mode == "audio":
             # Audio-only: TikTok exposes progressive (muxed) MP4s, so select
             # the best one and extract a real MP3 track with FFmpeg. This uses
@@ -1018,13 +1029,11 @@ def get_qualities(url: str, platform: str = "youtube") -> str:
 
     logger = _CaptureLogger()
     try:
-        with yt_dlp.YoutubeDL({
-            "quiet": True,
-            "no_warnings": False,
-            "socket_timeout": 30,
-            "logger": logger,
-        }) as ydl:
-            info = ydl.extract_info(url, download=False)
+        opts = _get_yt_dlp_opts(platform, 4320, Path('.'))
+        opts.pop('format', None)
+        opts['logger'] = logger
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = extract_media(ydl, url, platform, download=False)
 
             available_heights = set()
 
@@ -1034,6 +1043,9 @@ def get_qualities(url: str, platform: str = "youtube") -> str:
                     available_heights.add(int(height))
 
             qualities = sorted(available_heights)
+            if not qualities and any(f.get('url') and f.get('vcodec') != 'none'
+                                     for f in info.get('formats', [])):
+                qualities = [4320]
 
             if not qualities:
                 return json.dumps({
@@ -1125,6 +1137,8 @@ def _make_progress_hook(sink: Any, state: Dict[str, Any]):
     def hook(d: Dict[str, Any]) -> None:
         if sink is None:
             return
+        if sink.isCancelled():
+            raise yt_dlp.utils.DownloadError('Download cancelled')
         try:
             status = d.get("status")
 
@@ -1278,8 +1292,8 @@ def download_video(url: str, platform: str, quality: int, output_path: str,
         ydl_opts["progress_hooks"] = [_make_progress_hook(progress_sink, hook_state)]
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filepath = _resolve_final_filepath(ydl, info)
+            info = extract_media(ydl, url, platform, download=True)
+            filepath = final_filepath(ydl, info, mode)
             if mode == "audio":
                 # FFmpegExtractAudio writes "<title>.mp3"; ensure we report the
                 # converted MP3 (the record may still point at the source).
@@ -1434,4 +1448,24 @@ def _get_yt_dlp_opts(platform: str, quality: int, output_dir: Path,
             "user_agent": "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36",
         })
 
+    base_opts.update(extraction_options(platform))
+    base_opts['outtmpl'] = str(output_dir / '%(title).120s [%(id)s].%(ext)s')
+    if quality >= 4320 and mode == 'video':
+        base_opts['format'] = 'bestvideo+bestaudio/best'
     return base_opts
+
+
+def get_playlist(url: str) -> str:
+    try:
+        return json.dumps(extract_playlist(url))
+    except Exception as exc:
+        return json.dumps({'success': False, 'error': str(exc)})
+
+
+def handle_auth(command_json: str) -> str:
+    try:
+        command = json.loads(command_json)
+        return json.dumps(auth_status() if command['action'] == 'get_auth_status'
+                          else configure_auth(command))
+    except Exception as exc:
+        return json.dumps({'success': False, 'error': str(exc)})
