@@ -11,6 +11,17 @@ import media_core
 
 
 class MediaCoreTests(unittest.TestCase):
+    def test_quality_menu_excludes_storyboards_and_audio(self):
+        formats = [dict(height=90, vcodec='none', protocol='mhtml'),
+                   dict(height=27, ext='mhtml'),
+                   dict(height=1080, vcodec='none'),
+                   dict(height=120, vcodec='h264'),
+                   dict(height=720, vcodec='vp9'), dict(height=720)]
+        self.assertEqual(media_core.video_qualities({'formats': formats}), [120, 720])
+        self.assertEqual(media_core.video_qualities({'formats': [
+            dict(url='https://example.com/video', vcodec='h264')]}), [4320])
+        self.assertEqual(media_core.video_qualities({'formats': formats[:3]}), [])
+
     def test_cancelled_download_stops_at_the_next_progress_hook(self):
         from downloader import VideoDownloader
         downloader = VideoDownloader()

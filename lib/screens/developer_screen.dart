@@ -80,13 +80,22 @@ class _DeveloperScreenState extends State<DeveloperScreen> {
                                 OutlinedButton.icon(
                                     key: const ValueKey('developer-github'),
                                     onPressed: () => _open(AppRelease.github),
-                                    icon: const Icon(Icons.code_rounded),
+                                    icon: Image.asset(
+                                        theme.brightness == Brightness.dark
+                                            ? 'assets/brands/github-white.png'
+                                            : 'assets/brands/github-black.png',
+                                        width: 24,
+                                        height: 24,
+                                        excludeFromSemantics: true),
                                     label: const Text('GitHub')),
                                 OutlinedButton.icon(
                                     key: const ValueKey('developer-linkedin'),
                                     onPressed: () => _open(AppRelease.linkedin),
-                                    icon:
-                                        const Icon(Icons.work_outline_rounded),
+                                    icon: Image.asset(
+                                        'assets/brands/linkedin.png',
+                                        width: 24,
+                                        height: 24,
+                                        excludeFromSemantics: true),
                                     label: const Text('LinkedIn')),
                               ]),
                             ]))),

@@ -28,6 +28,7 @@ licenses.mkdir(exist_ok=True)
 for license_file in (root / 'assets/fonts').glob('*OFL*'):
     shutil.copy2(license_file, licenses / license_file.name)
 shutil.copy2(root / 'docs/THIRD_PARTY.md', licenses / 'THIRD_PARTY.md')
+shutil.copy2(root / 'docs/BRAND_ASSETS.md', licenses / 'BRAND_ASSETS.md')
 shutil.copytree(root / 'docs/licenses', licenses, dirs_exist_ok=True)
 destination = root / 'build/deliveries/Nazzelha-Windows-x64.zip'
 destination.parent.mkdir(parents=True, exist_ok=True)

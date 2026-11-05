@@ -15,6 +15,18 @@ HOSTS = {
 _cookie_directory = None
 
 
+def video_qualities(info):
+    """Return media resolutions, excluding audio and storyboard images."""
+    formats = [f for f in info.get('formats', [])
+               if f.get('vcodec') != 'none' and f.get('protocol') != 'mhtml'
+               and f.get('ext') not in ('mhtml', 'jpg', 'jpeg', 'png', 'webp')]
+    heights = {int(f['height']) for f in formats
+               if isinstance(f.get('height'), (int, float)) and f['height'] > 0}
+    if heights:
+        return sorted(heights)
+    return [4320] if any(f.get('url') for f in formats) else []
+
+
 def configure_cookie_directory(directory):
     global _cookie_directory
     _cookie_directory = Path(directory)

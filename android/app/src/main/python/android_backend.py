@@ -23,7 +23,7 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-from media_core import extraction_options, extract_media, extract_playlist, final_filepath, PublicMediaUnavailable
+from media_core import extraction_options, extract_media, extract_playlist, final_filepath, PublicMediaUnavailable, video_qualities
 from media_core import configure_cookie_directory, configure_auth, auth_status
 
 try:
@@ -1012,9 +1012,7 @@ def get_qualities(url: str, platform: str = "youtube") -> str:
         if not res["success"]:
             return _tiktok_failure_json(res, "extraction")
         info = res["info"]
-        available_heights = {int(f["height"]) for f in info.get("formats", [])
-                             if f.get("height") and f["height"] > 0}
-        qualities = sorted(available_heights)
+        qualities = video_qualities(info)
         if not qualities:
             return json.dumps({
                 "success": False,
@@ -1035,17 +1033,7 @@ def get_qualities(url: str, platform: str = "youtube") -> str:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = extract_media(ydl, url, platform, download=False)
 
-            available_heights = set()
-
-            for fmt in info.get("formats", []):
-                height = fmt.get("height")
-                if height and height > 0:
-                    available_heights.add(int(height))
-
-            qualities = sorted(available_heights)
-            if not qualities and any(f.get('url') and f.get('vcodec') != 'none'
-                                     for f in info.get('formats', [])):
-                qualities = [4320]
+            qualities = video_qualities(info)
 
             if not qualities:
                 return json.dumps({

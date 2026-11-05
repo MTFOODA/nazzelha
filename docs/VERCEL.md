@@ -40,6 +40,15 @@ Upstream sites may still reject datacenter IPs, require a login, or restrict a
 particular video. Never present local tests as proof that every platform works
 from Vercel's network; test the public deployment separately.
 
+Production verification on 2026-11-05: the anonymous public endpoint at
+https://nazzelha-mtfooda.vercel.app/api/health returned ready. The first supplied
+Facebook share URL downloaded a valid 1,062,954-byte MP4 through the public API.
+The supplied YouTube playlist returned all three entries and its Arabic title.
+YouTube media downloads (including a public control video) were rejected by the
+upstream platform from Vercel's network. The protected Facebook example also
+remained unavailable without the publisher's permitted session. This deployment
+does not provide universal YouTube downloading; native app operation is separate.
+
 ## Build and publish
 
 `vercel.json` builds Flutter web 3.47.7 and prepares QuickJS-NG 0.18.0, a small

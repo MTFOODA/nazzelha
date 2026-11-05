@@ -72,12 +72,36 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1200));
       await tester.pumpAndSettle();
       expect(find.byType(NazzelhaScreen), findsOneWidget);
+      Future<void> capture(String prefix) => tester.runAsync(() async {
+            final boundary = tester
+                .renderObject<RenderRepaintBoundary>(find.byKey(boundaryKey));
+            final image = await boundary.toImage();
+            final bytes =
+                await image.toByteData(format: ui.ImageByteFormat.png);
+            final directory = Directory('build/ui_previews')
+              ..createSync(recursive: true);
+            File('${directory.path}/$prefix${spec.dark ? 'dark' : 'light'}-${spec.ar ? 'ar' : 'en'}-${spec.width.toInt()}.png')
+                .writeAsBytesSync(bytes!.buffer.asUint8List());
+            image.dispose();
+          });
       await tester
           .tap(find.byKey(const ValueKey('about-developer')).hitTestable());
       await tester.pumpAndSettle();
       expect(find.byType(DeveloperScreen), findsOneWidget);
       expect(find.text('GitHub'), findsOneWidget);
       expect(find.text('LinkedIn'), findsOneWidget);
+      final githubIcon = tester.widget<Image>(find.descendant(
+          of: find.byKey(const ValueKey('developer-github')),
+          matching: find.byType(Image)));
+      expect((githubIcon.image as AssetImage).assetName,
+          'assets/brands/github-${spec.dark ? 'white' : 'black'}.png');
+      await tester.runAsync(() async {
+        final context = tester.element(find.byType(DeveloperScreen));
+        await precacheImage(githubIcon.image, context);
+        await precacheImage(const AssetImage('assets/brands/linkedin.png'), context);
+      });
+      await tester.pump();
+      await capture('developer-');
       expect(
           find.text(spec.ar ? 'محمد فودة' : 'Mohamed Fooda'), findsOneWidget);
       final edition = find.byKey(const ValueKey('app-edition'));
@@ -127,18 +151,6 @@ void main() {
       expect(Directionality.of(tester.element(find.byType(PlaylistScreen))),
           spec.ar ? TextDirection.rtl : TextDirection.ltr);
       expect(tester.takeException(), isNull);
-      Future<void> capture(String prefix) => tester.runAsync(() async {
-            final boundary = tester
-                .renderObject<RenderRepaintBoundary>(find.byKey(boundaryKey));
-            final image = await boundary.toImage();
-            final bytes =
-                await image.toByteData(format: ui.ImageByteFormat.png);
-            final directory = Directory('build/ui_previews')
-              ..createSync(recursive: true);
-            File('${directory.path}/$prefix${spec.dark ? 'dark' : 'light'}-${spec.ar ? 'ar' : 'en'}-${spec.width.toInt()}.png')
-                .writeAsBytesSync(bytes!.buffer.asUint8List());
-            image.dispose();
-          });
       await capture('');
       await tester.tap(spec.width >= 860
           ? find.byKey(const ValueKey('nav-0-label'))

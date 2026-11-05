@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import List, Dict, Any, Callable, Optional
-from media_core import extraction_options, extract_media, final_filepath, valid_url, PublicMediaUnavailable
+from media_core import extraction_options, extract_media, final_filepath, valid_url, PublicMediaUnavailable, video_qualities
 
 try:
     import yt_dlp
@@ -227,17 +227,7 @@ class VideoDownloader:
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     info = extract_media(ydl, url, platform, download=False)
 
-            available_heights = set()
-
-            for fmt in info.get("formats", []):
-                height = fmt.get("height")
-                if height and height > 0:
-                    available_heights.add(height)
-
-            qualities = sorted(available_heights)
-            if not qualities and any(f.get('url') and f.get('vcodec') != 'none'
-                                     for f in info.get('formats', [])):
-                qualities = [4320]  # Best available when resolution is unknown.
+            qualities = video_qualities(info)
 
             if not qualities:
                 return {
