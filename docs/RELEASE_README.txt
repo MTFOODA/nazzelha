@@ -1,4 +1,4 @@
-Nazzelha 1.1.2 — Mohamed Fooda
+Nazzelha 1.1.3 — Mohamed Fooda
 
 Windows: extract the entire ZIP to a folder, then open nazzelha.exe.
 Keep the backend, data and DLL files beside the executable.

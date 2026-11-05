@@ -15,14 +15,13 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.MediaStore
+import android.system.Os
 import android.util.Log
 import com.chaquo.python.PyObject
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import java.io.File
 import java.io.IOException
-import java.nio.file.Files
-import java.nio.file.Paths
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipFile
@@ -560,9 +559,10 @@ class DownloadForegroundService : Service() {
         if (!target.exists()) return null
         val link = File(binDir, linkName)
         try {
-            if (link.exists() || Files.isSymbolicLink(Paths.get(link.absolutePath))) link.delete()
+            // Remove old or dangling links without java.nio.file (API 26+).
+            link.delete()
             try {
-                Files.createSymbolicLink(Paths.get(link.absolutePath), Paths.get(target.absolutePath))
+                Os.symlink(target.absolutePath, link.absolutePath)
             } catch (e: Exception) {
                 target.copyTo(link, overwrite = true)
                 link.setExecutable(true, false)

@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 root = Path(__file__).resolve().parent.parent
@@ -34,3 +35,7 @@ destination = root / 'build/deliveries/Nazzelha-Android.apk'
 destination.parent.mkdir(parents=True, exist_ok=True)
 shutil.copy2(apk, destination)
 print(destination.name, destination.stat().st_size, 'bytes')
+version = re.search(r'^version:\s*(\S+)', (root / 'pubspec.yaml').read_text(), re.M)[1]
+name, code = version.split('+')
+subprocess.run([sys.executable, str(root / 'tool/verify_android_release.py'), str(destination),
+    '--expected-version', name, '--expected-version-code', code], cwd=root, check=True)

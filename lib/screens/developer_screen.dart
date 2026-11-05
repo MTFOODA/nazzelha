@@ -141,8 +141,8 @@ class _DeveloperScreenState extends State<DeveloperScreen> {
                                           ? 'فك ضغط الملف ثم شغّل Nazzelha.exe.'
                                           : 'Extract the ZIP, then open Nazzelha.exe.')
                                       : (ar
-                                          ? 'ملف APK لأجهزة أندرويد.'
-                                          : 'APK for Android devices.'),
+                                          ? 'ملف APK لأندرويد 7 أو أحدث (ARM / ARM64 / x86_64).'
+                                          : 'APK for Android 7 or later (ARM / ARM64 / x86_64).'),
                                   style: theme.textTheme.bodySmall?.copyWith(
                                       color:
                                           theme.colorScheme.onSurfaceVariant)),

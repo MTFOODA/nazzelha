@@ -1,6 +1,7 @@
 ﻿package com.example.nazzelha
 
 import android.util.Log
+import android.os.SystemClock
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -223,7 +224,19 @@ class TikTokExtractor(private val progressSink: ProgressSink?) {
                     // stream closed on timeout - ignore
                 }
             }.start()
-            val done = process.waitFor(300, TimeUnit.SECONDS)
+            // Process.waitFor(timeout, unit) is only available from API 26.
+            // Poll the exit status with a monotonic deadline on every API.
+            val deadline = SystemClock.elapsedRealtime() + TimeUnit.SECONDS.toMillis(300)
+            var done = false
+            while (SystemClock.elapsedRealtime() < deadline) {
+                try {
+                    process.exitValue()
+                    done = true
+                    break
+                } catch (_: IllegalThreadStateException) {
+                    Thread.sleep(100)
+                }
+            }
             process.destroy()
             if (!done) throw IOException("FFmpeg timed out extracting audio")
             if (process.exitValue() == 0 && output.exists() && output.length() > 0L) {

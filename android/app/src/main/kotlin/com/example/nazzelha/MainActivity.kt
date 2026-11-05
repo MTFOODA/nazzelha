@@ -16,6 +16,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.provider.DocumentsContract
+import android.system.Os
 import android.util.Log
 import com.chaquo.python.PyObject
 import com.chaquo.python.Python
@@ -25,8 +26,6 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.IOException
-import java.nio.file.Files
-import java.nio.file.Paths
 import java.util.concurrent.Executors
 import java.util.zip.ZipFile
 import org.json.JSONObject
@@ -684,14 +683,11 @@ class MainActivity : FlutterActivity() {
         }
         val link = File(binDir, linkName)
         try {
-            if (link.exists() || Files.isSymbolicLink(Paths.get(link.absolutePath))) {
-                link.delete()
-            }
+            // File.delete also removes dangling symlinks left by an app update.
+            // android.system.Os is available on API 21; java.nio.file needs 26.
+            link.delete()
             try {
-                Files.createSymbolicLink(
-                    Paths.get(link.absolutePath),
-                    Paths.get(target.absolutePath)
-                )
+                Os.symlink(target.absolutePath, link.absolutePath)
             } catch (e: Exception) {
                 Log.w(TAG, "Symlink creation failed for $linkName, falling back to copy", e)
                 target.copyTo(link, overwrite = true)

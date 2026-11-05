@@ -128,7 +128,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
           find.text(
-              spec.ar ? 'ملف APK لأجهزة أندرويد.' : 'APK for Android devices.'),
+              spec.ar ? 'ملف APK لأندرويد 7 أو أحدث (ARM / ARM64 / x86_64).' : 'APK for Android 7 or later (ARM / ARM64 / x86_64).'),
           findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('edition-windows')));
       await tester.pumpAndSettle();
