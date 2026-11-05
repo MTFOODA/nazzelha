@@ -64,6 +64,9 @@ download URL before announcing the release. Never publish `.release/` contents.
 - Cloudflare Worker: four routing/isolation tests passed.
 - Edge 156: public 1.1.1 UI and official logos rendered; browser byte/ZIP
   harness passed with exact Arabic folder names and complete contents.
+  The real Facebook sample was also downloaded through the published Flutter
+  card and saved using its Save to your device button. The saved MP4 matched
+  the API's SHA-256 digest and decoded with FFmpeg without errors.
 - Android: signed APK version 1.1.1/code 3 verified and installed as an update
   on the dedicated emulator; developer screen inspected. The earlier native
   background playlist and per-entry control integration checks passed.
@@ -73,3 +76,8 @@ download URL before announcing the release. Never publish `.release/` contents.
   YouTube playlist metadata returned three entries; media requests were
   rejected by YouTube from the hosting network. See VERCEL.md for web limits.
 - No native iOS build or physical iPhone verification was performed.
+
+Published release: https://github.com/MTFOODA/nazzelha/releases/tag/v1.1.1.
+All three release asset URLs were verified anonymously. Uploaded APK/ZIP hashes
+match the local SHA256SUMS.txt. Public Cloudflare API routing and version 1.1.1
+were verified in Edge after replacing an older concurrent automatic deployment.
