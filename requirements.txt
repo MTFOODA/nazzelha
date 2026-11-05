@@ -1,3 +1,10 @@
--r python_backend/requirements-server.txt
+# Keep these pins aligned with python_backend/requirements-server.txt.
+# Vercel's function bundler expects a flat requirements file.
+yt-dlp[default]==2026.10.26
+yt-dlp-ejs==0.8.0
+curl-cffi==0.16.0
+fastapi==0.162.0
+starlette==1.6.0
+uvicorn==0.54.0
 # Portable Linux FFmpeg; Vercel's runtime does not install apt packages.
 imageio-ffmpeg==0.6.0
