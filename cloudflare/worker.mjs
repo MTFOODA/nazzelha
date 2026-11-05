@@ -15,7 +15,7 @@ export default {
         !['.onrender.com', '.code.run', '.vercel.app'].some(suffix => target.hostname.endsWith(suffix))) {
       return Response.json({ error: 'The download service is unavailable.' }, { status: 503 });
     }
-    target.pathname = '/' + path;
+    target.pathname = (target.hostname.endsWith('.vercel.app') ? '/api/' : '/') + path;
     target.search = '';
     const headers = new Headers();
     for (const name of ['content-type', 'cookie', 'range', 'if-range']) {

@@ -33,3 +33,16 @@ test('reject cross-origin mutations and arbitrary upstreams', async () => {
   assert.equal((await worker.fetch(new Request('https://nazzelha.test/api/cancel', { method: 'POST', headers: { origin: 'https://evil.test' } }), { API_ORIGIN: 'https://nazzelha-api.onrender.com' })).status, 403);
   assert.equal((await worker.fetch(new Request('https://nazzelha.test/api/health'), { API_ORIGIN: 'http://127.0.0.1' })).status, 503);
 });
+
+test('Vercel proxy reaches the Python API rather than the SPA', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.equal(url.href, 'https://nazzelha-mtfooda.vercel.app/api/health');
+    return Response.json({ ready: true, transfer: 'browser' });
+  };
+  try {
+    const result = await worker.fetch(new Request('https://nazzelha.test/api/health'),
+      { API_ORIGIN: 'https://nazzelha-mtfooda.vercel.app' });
+    assert.equal((await result.json()).transfer, 'browser');
+  } finally { globalThis.fetch = original; }
+});
