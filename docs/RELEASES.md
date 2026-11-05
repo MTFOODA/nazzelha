@@ -98,6 +98,9 @@ bundled-engine startup also passed. See [installation evidence](ANDROID_INSTALLA
 The documentation package includes an Arabic manual, a guide with 40 numbered
 control locations, the 3:05 captioned illustrated MP4 and its editable source.
 The video is not a new live interaction recording. See [demo scope](DEMO.md).
+The separate live Android MP4 records real transfers, folder naming, background
+execution and individual controls at 1.75x. Its two retained playlist MP4s passed
+full decode checks; the third item was intentionally excluded in the demo.
 
 Prepare these files in `build/deliveries/` before running
 `python tool/publish_release.py --publish`:
@@ -106,6 +109,7 @@ Prepare these files in `build/deliveries/` before running
 - `Nazzelha-Windows-x64.zip`
 - `Nazzelha-Documentation.zip`
 - `Nazzelha-Walkthrough-AR.mp4`
+- `Nazzelha-Live-Demo-Android.mp4`
 
 The publisher generates `SHA256SUMS.txt`, uploads a draft, validates GitHub
 asset digests and sizes, then publishes when `--publish` is present. It obtains

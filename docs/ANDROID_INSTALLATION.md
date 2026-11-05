@@ -127,9 +127,8 @@ A real download of the public Facebook example completed with the activity
 backgrounded on Android 7 after this final callback fix. The persisted terminal
 result was `success: true`, `phase: completed`, with a 1,062,959-byte
 `API24Acceptance.mp4` in the public Downloads folder. The first request had a
-transient TLS record error; the normal Resume action succeeded. A decode check
-of that particular downloaded file was not completed after automatic command
-approval reached its usage limit. These results do not establish successful
+transient TLS record error; the normal Resume action succeeded. After command approval resumed, the actual downloaded MP4 was pulled from
+the isolated emulator and decoded completely with FFmpeg without errors. These results do not establish successful
 access to private/account-only sources or every supported platform.
 
 The physical-device browser installation above used public 1.1.2; the final

@@ -1,7 +1,7 @@
 {
   "scope": "Nazzelha workspace only; no physical-phone downloads or other repositories touched",
-  "deleted_items": 249,
-  "freed_bytes": 499122574,
+  "deleted_items": 261,
+  "freed_bytes": 4624632853,
   "retained_root_files": [
     "_INSTALL_RESUME.md",
     "_api24_legacy_features.log",
@@ -14,5 +14,11 @@
   "source_tests_preserved": true,
   "active_emulator_data_preserved": true,
   "release_signing_and_credentials_preserved": true,
-  "original_ffmpeg_backup_retained_for_documented_rebuild_and_rollback": true
+  "original_ffmpeg_backup_retained_for_documented_rebuild_and_rollback": true,
+  "owned_emulators_closed_after_verification": true,
+  "closed_disposable_emulator_data_removed": true,
+  "additional_disk_free_increase_bytes": 12252016640,
+  "locked_directories_skipped": [
+    "build/install_avds"
+  ]
 }

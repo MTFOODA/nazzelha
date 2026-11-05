@@ -101,7 +101,7 @@
     "filename": "API24Acceptance.mp4",
     "transient_tls_error_then_resume_succeeded": true,
     "persisted_result_verified": true,
-    "media_decode_check": "not performed after execution approval limit"
+    "media_decode_check": "full MP4 decode passed with FFmpeg after command approval resumed"
   },
   "windows_1_1_3": {
     "bundled_engine_startup": true,
@@ -115,8 +115,20 @@
   "not_verified": [
     "every Android version between 7 and 17 separately",
     "native iOS, Linux or macOS builds",
-    "final 1.1.3 installation on physical Xiaomi",
-    "fresh live narrated screen recording"
+    "final 1.1.3 installation on physical Xiaomi"
   ],
-  "publication": "prepared locally; release publication pending"
+  "publication": "See GitHub Releases for the current public version.",
+  "live_demo": {
+    "platform": "signed Android 7/API24 app",
+    "speed": 1.75,
+    "seconds": 232.93,
+    "facebook_background_completed": true,
+    "youtube_playlist_entries": 3,
+    "chosen_folder": "اناشيد عامة Demo",
+    "completed": 2,
+    "intentionally_removed": 1,
+    "all_downloaded_mp4s_decoded": true,
+    "statistics_panel_during_capture": "temporarily unavailable",
+    "android_7_folder_picker": "may start at Recent; manual navigation required by older file manager"
+  }
 }

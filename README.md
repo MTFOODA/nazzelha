@@ -38,12 +38,13 @@ limits. The public hosting network can be rejected by upstream video services.
 
 ## Demo video
 
-[Arabic illustrated walkthrough — 3:05](docs/media/Nazzelha-Walkthrough-AR.mp4)
+[Live Android demonstration](docs/media/Nazzelha-Live-Demo-Android.mp4) · [Arabic illustrated walkthrough — 3:05](docs/media/Nazzelha-Walkthrough-AR.mp4)
 
 [Chapters and scope](docs/DEMO.md) · [Interactive button annotations](docs/guide-ar.html).
-The video uses application UI captures and labeled demonstration data; it is
-not a new live screen recording. Actual installation and download results are
-recorded separately in [the verification summary](docs/verification-1.1.3.json).
+The live video records the signed app, real Facebook/YouTube downloads, Arabic
+folder naming, background execution, history and individual controls at 1.75×
+speed. The separate illustrated walkthrough uses labeled demonstration data.
+Actual results are in [the verification summary](docs/verification-1.1.3.json).
 
 ## Prerequisites
 

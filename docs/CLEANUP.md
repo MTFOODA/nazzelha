@@ -21,19 +21,23 @@ Retained deliberately:
 - Signing material and credentials in their existing ignored private locations.
 - Final distributable APK/ZIP files, finished documentation/video, and the
   underlying build environment.
-- Active emulator data and any log still open by a running process. Deleting
-  those while a process uses them is unsafe. No process was killed to bypass
-  the unavailable command-approval review.
+- Personal AVD base data and any file still locked by a running process.
+  After command approval resumed and recording/verification finished, only the
+  two confirmed task-owned emulators were closed. Their disposable workspace
+  data/system-image cache was cleaned; locked leftovers were skipped.
 - The documented FFmpeg rebuilding/verification helpers and original native
   backup used by the existing rollback helper. These are not app runtime files.
-- A local ignored resume note for the unfinished publication/live recording.
+- A local ignored task-resume note; no private diagnostics are published.
 
 The reviewed release publisher moved from a disposable root helper to
 `tool/publish_release.py`; it checks uploaded asset sizes/digests and refuses to
 replace an already-public version. It is prepared for 1.1.3 and requires the
 explicit `--publish` option to make a prepared draft public.
 
+The second cleanup increased free disk space by approximately 11.4 GiB, in
+addition to the earlier roughly 476 MiB of APK copies/root experiments.
+
 Generated files under `build/`, caches and local helpers remain excluded by
 `.gitignore`. Cleanup removes local experiments; it does not rewrite Git history
-or remove useful tests from GitHub. The current source/documentation update
-still needs to be committed/pushed once execution approval becomes available.
+or remove useful tests from GitHub. Reviewed source/documentation updates use
+the normal commit/push and release process; generated caches are not uploaded.

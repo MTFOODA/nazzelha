@@ -27,7 +27,7 @@ def request(path, method='GET', data=None, content_type='application/json'):
     with urllib.request.urlopen(req, timeout=900) as response:
         return json.load(response)
 
-assets = [root / 'build/deliveries' / name for name in ('Nazzelha-Android.apk', 'Nazzelha-Windows-x64.zip', 'Nazzelha-Documentation.zip', 'Nazzelha-Walkthrough-AR.mp4')]
+assets = [root / 'build/deliveries' / name for name in ('Nazzelha-Android.apk', 'Nazzelha-Windows-x64.zip', 'Nazzelha-Documentation.zip', 'Nazzelha-Walkthrough-AR.mp4', 'Nazzelha-Live-Demo-Android.mp4')]
 if any(not file.is_file() for file in assets):
     raise SystemExit('Release files are missing.')
 checksums = root / 'build/deliveries/SHA256SUMS.txt'
@@ -43,6 +43,7 @@ notes = '''Nazzelha 1.1.3
 - Added an independent APK integrity gate covering the release certificate, signatures, ZIP CRCs, ABI machine types and 16 KB alignment, including packed FFmpeg libraries.
 - Verified update and clean installation on Android 7 and Android 17 test images. A fresh public 1.1.2 download through the official website also installed and opened on the user's Xiaomi 15T Pro / HyperOS 3 / Android 17; the older local download was corrupt and failed its APK integrity check.
 - Added an Arabic user manual, an annotated button guide and a captioned illustrated walkthrough (not a new live screen recording).
+- Added a separate live Android demo at 1.75x: real Facebook background download, YouTube playlist extraction, Arabic folder, pause/resume, per-video resume/removal, history and appearance/edition controls. Both remaining playlist files passed full MP4 decode checks; the third item was deliberately removed during the demonstration.
 - Retains the website visit/download statistics, Windows/Android selection buttons, unified headers, playlist history and background Android downloads.
 
 Android: universal APK for Android 7/API 24 and later, ARM64, ARMv7 and x86_64; version code 5. Same release certificate; signed releases can update in place.
