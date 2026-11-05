@@ -1,28 +1,22 @@
-"""Bundle verified official Node for yt-dlp's JS solver in the Python runtime."""
+"""Bundle the small, supported QuickJS-NG runtime for Vercel's size limit."""
 import hashlib
-import io
-import tarfile
 import urllib.request
 from pathlib import Path
 
-version = 'v24.20.0'
-filename = f'node-{version}-linux-x64.tar.xz'
-base = f'https://nodejs.org/dist/{version}/'
+version = 'v0.18.0'
+url = f'https://github.com/quickjs-ng/quickjs/releases/download/{version}/qjs-linux-x86_64'
+expected = '85ded23b9fabe8c1644fc40a8d2bbdd71157affcbd807359c618cc717ee24d7d'
 target = Path('python_backend/bin')
 target.mkdir(parents=True, exist_ok=True)
-with urllib.request.urlopen(base + 'SHASUMS256.txt', timeout=30) as response:
-    checksums = response.read().decode()
-expected = next(line.split()[0] for line in checksums.splitlines() if line.split()[-1] == filename)
-with urllib.request.urlopen(base + filename, timeout=180) as response:
+with urllib.request.urlopen(url, timeout=90) as response:
     data = response.read()
 if hashlib.sha256(data).hexdigest() != expected:
-    raise SystemExit('Official Node.js SHA256 verification failed.')
-with tarfile.open(fileobj=io.BytesIO(data), mode='r:xz') as archive:
-    for member, destination in ((f'node-{version}-linux-x64/bin/node', 'node'),
-                                 (f'node-{version}-linux-x64/LICENSE', 'NODE-LICENSE.txt')):
-        source = archive.extractfile(member)
-        if source is None:
-            raise SystemExit('Invalid official Node archive.')
-        (target / destination).write_bytes(source.read())
-(target / 'node').chmod(0o755)
-print('Verified official Node.js runtime prepared for Vercel.')
+    raise SystemExit('Official QuickJS-NG SHA256 verification failed.')
+# These two files are artifacts from the previous Vercel packager only.
+for legacy in ('node', 'NODE-LICENSE.txt'):
+    (target / legacy).unlink(missing_ok=True)
+(target / 'qjs').write_bytes(data)
+(target / 'qjs').chmod(0o755)
+with urllib.request.urlopen(f'https://raw.githubusercontent.com/quickjs-ng/quickjs/{version}/LICENSE', timeout=30) as response:
+    (target / 'QUICKJS-LICENSE.txt').write_bytes(response.read())
+print('Verified QuickJS-NG runtime prepared for Vercel:', len(data), 'bytes.')

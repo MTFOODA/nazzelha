@@ -42,9 +42,12 @@ from Vercel's network; test the public deployment separately.
 
 ## Build and publish
 
-`vercel.json` builds Flutter web 3.47.7 and prepares the official Node.js runtime
-used by yt-dlp's JS solver. Node's download is verified against the official
-SHA256 manifest. Python 3.12 and pinned requirements are selected. The Python
+`vercel.json` builds Flutter web 3.47.7 and prepares QuickJS-NG 0.18.0, a small
+runtime supported by yt-dlp's JS solver. Its download is checked against the
+official release's SHA256 digest. Native Windows continues to use bundled Node.
+The file-based Vercel builder enforced a 225 MB function bundle limit during
+deployment, so the cloud package uses QuickJS rather than the much larger Node
+binary. Python 3.12 and pinned requirements are selected. The Python
 bundle excludes the Flutter SDK, native sources, tests, assets and private keys.
 FFmpeg is supplied by the imageio-ffmpeg wheel. GitHub release binaries are linked
 from the developer page instead of being uploaded as website assets.

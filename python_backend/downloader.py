@@ -870,7 +870,10 @@ class VideoDownloader:
             # desktop backend environment).
             bundled_node = Path(sys.executable).parent / 'tools' / 'node.exe'
             node = os.environ.get('NAZZELHA_NODE_PATH') or (str(bundled_node) if bundled_node.is_file() else shutil.which('node'))
-            if node:
+            quickjs = os.environ.get('NAZZELHA_QUICKJS_PATH')
+            if quickjs:
+                base_opts["js_runtimes"] = {"quickjs": {"path": quickjs}}
+            elif node:
                 base_opts["js_runtimes"] = {"node": {"path": node}}
 
         elif platform in ("facebook", "fb.watch"):
