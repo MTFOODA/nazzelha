@@ -28,6 +28,12 @@ class AppStrings {
   String errorMessage(String raw) {
     final message =
         raw.replaceFirst('Exception: ', '').replaceFirst('Bad state: ', '');
+    if (message.contains(
+        'YouTube is blocking requests from the hosted download service.')) {
+      return isAr
+          ? 'يوتيوب يمنع طلبات خدمة التنزيل المستضافة لهذا الرابط. استخدم تطبيق Android أو Windows لتنزيله.'
+          : 'YouTube is blocking requests from the hosted download service. Use the Android or Windows app for this link.';
+    }
     if (isAr && _labels.containsKey(message)) return _labels[message]!;
     final lower = message.toLowerCase();
     if (lower.contains('network') ||

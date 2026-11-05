@@ -1,0 +1,44 @@
+name: iOS unsigned preview
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - 'lib/**'
+      - 'pubspec.*'
+      - 'integration_test/ios_remote_transfer_test.dart'
+      - 'tool/ios_preview.sh'
+      - 'tool/ios_simulator_smoke.py'
+      - '.github/workflows/ios-preview.yml'
+permissions:
+  contents: read
+concurrency:
+  group: ios-preview-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Flutter
+        shell: bash
+        run: |
+          git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Build unsigned device IPA and test simulator
+        shell: bash
+        run: bash tool/ios_preview.sh
+      - name: Upload iOS artifacts and test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nazzelha-iOS-preview
+          path: |
+            build/deliveries/Nazzelha-iOS-Unsigned.ipa
+            build/deliveries/Nazzelha-iOS-Simulator.zip
+            build/deliveries/IOS-SHA256SUMS.txt
+            build/ios-preview/
+          if-no-files-found: warn
+          retention-days: 14

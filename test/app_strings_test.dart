@@ -3,6 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nazzelha/l10n/app_strings.dart';
 
 void main() {
+  test('hosted YouTube challenge is distinct from publisher restrictions', () {
+    const message =
+        'YouTube is blocking requests from the hosted download service. Use the Android or Windows app for this link.';
+    expect(const AppStrings(Locale('en')).errorMessage(message), message);
+    final translated = const AppStrings(Locale('ar')).errorMessage(message);
+    expect(translated, contains('خدمة التنزيل'));
+    expect(translated, isNot(contains('ناشر')));
+  });
   test('inaccessible video errors use the requested short publisher message',
       () {
     const ar = AppStrings(Locale('ar'));

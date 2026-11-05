@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from fastapi.testclient import TestClient
-from serverless_api import create_serverless_app
+from serverless_api import create_serverless_app, public_result
 
 
 FAKE_JOB = '''
@@ -11,6 +11,10 @@ import json, sys, time
 from pathlib import Path
 print(json.dumps(dict(ready=True)), flush=True)
 command = json.loads(sys.stdin.readline())
+if 'blocked' in command['url']:
+    print(json.dumps(dict(success=False, error_code='AUTHENTICATION_REQUIRED',
+        error='Authentication required', technical="Sign in to confirm you are not a bot.")), flush=True)
+    sys.exit(0)
 if 'slow' in command['url']:
     time.sleep(3)
 if command['action'] == 'download':
@@ -24,6 +28,18 @@ else:
 
 
 class ServerlessTests(unittest.TestCase):
+    def test_host_challenge_is_not_reported_as_publisher_restriction(self):
+        raw = dict(success=False, error_code='AUTHENTICATION_REQUIRED',
+                   error='Private or authentication required',
+                   technical="Sign in to confirm you're not a bot.",
+                   diagnostics={'private': 'internal trace'})
+        result = public_result(raw, 'youtube')
+        self.assertEqual(result['error_code'], 'HOSTING_RESTRICTED')
+        self.assertNotIn('technical', result)
+        self.assertNotIn('diagnostics', result)
+        private = public_result(dict(raw, technical='This video is private.'), 'youtube')
+        self.assertEqual(private['error_code'], 'AUTHENTICATION_REQUIRED')
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.job = Path(self.temp.name) / 'fake_job.py'
@@ -38,6 +54,15 @@ class ServerlessTests(unittest.TestCase):
             self.assertEqual(self.client.get(prefix + '/health').json()['transfer'], 'browser')
         self.assertEqual(self.client.get('/api?_nazzelha_route=health').json()['ready'], True)
         self.assertEqual(self.client.post('/api/command', json=dict(action='get_qualities', url='https://youtube.com/watch?v=abcdefghijk')).json()['qualities'], [720, 1080])
+
+    def test_host_challenge_is_preserved_in_metadata_and_stream_responses(self):
+        request = dict(action='get_qualities', platform='youtube', url='https://youtube.com/blocked')
+        result = self.client.post('/command', json=request).json()
+        self.assertEqual(result['error_code'], 'HOSTING_RESTRICTED')
+        response = self.client.post('/download', json=request)
+        result = json.loads(response.text.strip())
+        self.assertEqual(result['error_code'], 'HOSTING_RESTRICTED')
+        self.assertNotIn('technical', result)
 
     def test_stream_over_payload_limit_and_no_temporary_host_paths(self):
         import base64

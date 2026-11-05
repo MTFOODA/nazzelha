@@ -25,6 +25,25 @@ from public_api import safe_name
 MAX_FILE_BYTES = 96 * 1024 * 1024
 JOB_TIMEOUT = 225
 
+HOSTING_RESTRICTED_MESSAGE = (
+    'YouTube is blocking requests from the hosted download service. '
+    'Use the Android or Windows app for this link.'
+)
+
+
+def public_result(result, platform):
+    """Keep hosting challenges distinct from private videos and omit diagnostics."""
+    if result.get('success') is not False:
+        return result
+    detail = str(result.get('technical', '') or result.get('error', '')).lower()
+    if platform == 'youtube' and any(text in detail for text in (
+            "confirm you’re not a bot", "confirm you're not a bot",
+            'confirm you are not a bot')):
+        return dict(success=False, error_code='HOSTING_RESTRICTED',
+                    error=HOSTING_RESTRICTED_MESSAGE)
+    return {key: result[key] for key in ('success', 'error', 'error_code', 'cancelled')
+            if key in result}
+
 
 def create_serverless_app(job_script=None, timeout=JOB_TIMEOUT):
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -132,7 +151,7 @@ def create_serverless_app(job_script=None, timeout=JOB_TIMEOUT):
                 async with run_command(dict(action=action, url=url, platform=platform), min(timeout, 165)) as events:
                     async for result in events:
                         if 'success' in result:
-                            return result
+                            return public_result(result, platform)
             except TimeoutError:
                 return dict(success=False, error='Video extraction timed out. Please try again or use the app.')
         return dict(success=False, error='Could not prepare this video. Please try again.')
@@ -159,10 +178,12 @@ def create_serverless_app(job_script=None, timeout=JOB_TIMEOUT):
                                         ('event', 'percent', 'speed', 'eta', 'total_bytes', 'downloaded_bytes', 'phase')}) + '\n'
                                 elif 'success' in result:
                                     if result.get('success') is not True:
+                                        result = public_result(result, platform)
                                         error = str(result.get('error', 'Download failed.'))
                                         if 'max-filesize' in error.lower() or 'max_filesize' in error.lower():
                                             error = 'The free web edition supports files up to 96 MB. Choose a lower quality or use the app.'
-                                        yield json.dumps(dict(success=False, error=error)) + '\n'
+                                        yield json.dumps(dict(success=False, error=error,
+                                                              error_code=result.get('error_code'))) + '\n'
                                         return
                                     path = Path(result.get('file', '')).resolve()
                                     if path.parent != Path(output).resolve() or not path.is_file():

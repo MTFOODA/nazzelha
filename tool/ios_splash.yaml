@@ -1,0 +1,7 @@
+flutter_native_splash:
+  android: false
+  ios: true
+  web: false
+  color: '#FFFFFF'
+  color_dark: '#0A1120'
+  image: assets/logo/nazzelha_splash-v2.png

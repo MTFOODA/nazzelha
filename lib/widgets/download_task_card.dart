@@ -11,6 +11,7 @@ import '../theme/colors.dart';
 import 'custom_dropdown.dart';
 import 'app_motion.dart';
 import 'download_location_button.dart';
+import 'hosted_failure_actions.dart';
 
 /// A compact, self-contained download container for the Nazzelha queue.
 class DownloadTaskCard extends StatefulWidget {
@@ -197,6 +198,9 @@ class _DownloadTaskCardState extends State<DownloadTaskCard> {
               ),
             ],
             const SizedBox(height: 12),
+            if (HostedFailureActions.matches(task.error) ||
+                HostedFailureActions.matches(task.qualityError))
+              HostedFailureActions(url: task.url),
             _progressArea(task, isDark),
             if (task.outputFile != null && task.status == TaskStatus.completed)
               DownloadLocationButton(

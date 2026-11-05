@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/download_progress.dart';
 import 'download_paths.dart';
 import 'browser_save.dart';
+import 'remote_file_transfer.dart';
 
 /// Raised when a download was explicitly cancelled by the user. Keeping this
 /// distinct from a generic failure lets the UI show "cancelled" instead of
@@ -107,15 +108,18 @@ class PythonService {
   PythonService({required this.logger});
 
   bool get isInitialized => _isInitialized;
+  bool get usesHostedBackend => kIsWeb || RuntimePlatform.isIOS;
 
   Future<void> initialize() async {
-    if (kIsWeb) {
+    if (usesHostedBackend) {
       const configured = String.fromEnvironment('NAZZELHA_BACKEND');
       _httpBackendUrl = configured.isNotEmpty
           ? configured
-          : isPublicWeb
-              ? '/api'
-              : 'http://127.0.0.1:8000';
+          : RuntimePlatform.isIOS
+              ? 'https://nazzelha.mohamed-fooda-mtf.workers.dev/api'
+              : isPublicWeb
+                  ? '/api'
+                  : 'http://127.0.0.1:8000';
       _useHttpBackend = true;
       try {
         final response = await http
@@ -132,7 +136,7 @@ class PythonService {
       }
       lastInitError = _isInitialized
           ? null
-          : isPublicWeb
+          : (isPublicWeb || RuntimePlatform.isIOS)
               ? 'The free download service is waking up. Please try again shortly.'
               : 'Start the local backend: python python_backend/web_bridge.py, then reload this page.';
       return;
@@ -183,19 +187,6 @@ class PythonService {
           _isInitialized = false;
           rethrow;
         }
-        return;
-      }
-
-      if (RuntimePlatform.isIOS) {
-        _useHttpBackend = false;
-        _androidLocalBackend = false;
-        _responseBuffer = PythonResponseBuffer();
-        _isInitialized = false;
-        lastInitError =
-            'iOS does not have a real Python backend in this build. Install a compatible iOS backend or run the project on Desktop to use yt-dlp.';
-        logger.w(
-            '[PythonService] iOS platform is intentionally not initialized because no iOS-native backend is configured.');
-        logger.w('[PythonService] $lastInitError');
         return;
       }
 
@@ -341,7 +332,7 @@ class PythonService {
     Duration? timeout,
   }) async {
     if (_restartInProgress != null) await _restartInProgress;
-    if (kIsWeb && !_isInitialized) await _connectWebBackend();
+    if (usesHostedBackend && !_isInitialized) await _connectWebBackend();
     if (!_isInitialized) {
       final message = lastInitError ?? 'Python service is not initialized';
       throw StateError(message);
@@ -355,7 +346,8 @@ class PythonService {
             .timeout(timeout ?? const Duration(minutes: 10));
       }
 
-      if (RuntimePlatform.isAndroid || RuntimePlatform.isIOS) {
+      if (RuntimePlatform.isAndroid ||
+          (RuntimePlatform.isIOS && !_useHttpBackend)) {
         throw StateError(lastInitError ??
             'Android does not have a real Python backend in this build.');
       }
@@ -471,15 +463,15 @@ class PythonService {
     _webCancelled = false;
     lastDownloadResult = null;
     try {
-      if (kIsWeb && !_isInitialized) await _connectWebBackend();
+      if (usesHostedBackend && !_isInitialized) await _connectWebBackend();
       if (!_isInitialized) {
         throw StateError(lastInitError ?? 'Python service is not initialized');
       }
 
-      if (kIsWeb) {
+      if (usesHostedBackend) {
         final client = http.Client();
         _activeWebClient = client;
-        BrowserFileTransfer? transfer;
+        RemoteFileTransfer? transfer;
         try {
           final request =
               http.Request('POST', Uri.parse('$_httpBackendUrl/download'))
@@ -504,8 +496,9 @@ class PythonService {
             final payload = jsonDecode(line) as Map<String, dynamic>;
             if (payload['event'] == 'file_start') {
               transfer?.dispose();
-              transfer = BrowserFileTransfer(payload['filename'].toString(),
-                  (payload['size'] as num).toInt());
+              transfer = RemoteFileTransfer(payload['filename'].toString(),
+                  (payload['size'] as num).toInt(),
+                  directory: outputPath);
             } else if (payload['event'] == 'file_chunk') {
               if (transfer == null) throw StateError('Invalid media transfer.');
               transfer.addChunk(base64Decode(payload['data'] as String));
@@ -521,6 +514,9 @@ class PythonService {
                   throw StateError('Invalid media transfer.');
                 }
                 payload['file'] = transfer.finish();
+              } else if (RuntimePlatform.isIOS) {
+                throw StateError(
+                    'The hosted service did not return a file transfer.');
               }
               lastDownloadResult = payload;
               completed = true;
@@ -777,7 +773,7 @@ class PythonService {
         throw Exception(payload['error'] ?? 'Download failed');
       }
     } catch (e, st) {
-      if (kIsWeb && _webCancelled) {
+      if (usesHostedBackend && _webCancelled) {
         throw DownloadCancelledException('Download cancelled');
       }
       logger.e('Download error: ${e.toString()}');
@@ -789,6 +785,12 @@ class PythonService {
   }
 
   Future<String> getDownloadDirectory() async {
+    if (RuntimePlatform.isIOS) {
+      final docs = await getApplicationDocumentsDirectory();
+      final directory = Directory('${docs.path}/Nazzelha');
+      await directory.create(recursive: true);
+      return _downloadDirectory = directory.path;
+    }
     if (RuntimePlatform.isAndroid) {
       // Informational only: the native side persists finished downloads into
       // the public Downloads/Nazzelha location via MediaStore, using its own
@@ -940,6 +942,9 @@ class PythonService {
           'explorer.exe', file == null ? [target] : ['/select,', target]);
     } else if (RuntimePlatform.isMacOS) {
       await Process.start('open', file == null ? [target] : ['-R', target]);
+    } else if (RuntimePlatform.isIOS) {
+      await const MethodChannel('nazzelha/ios_files')
+          .invokeMethod('show_files', {'path': target});
     } else {
       await Process.start(
           'xdg-open', [file == null ? target : File(target).parent.path]);
@@ -1165,7 +1170,7 @@ class PythonService {
 
   /// Ask the native foreground service to cancel the active download.
   Future<void> cancelDownload() async {
-    if (kIsWeb && _downloadBusy && _browserTransfers) {
+    if (usesHostedBackend && _downloadBusy && _browserTransfers) {
       _webCancelled = true;
       _activeWebClient?.close();
       return;

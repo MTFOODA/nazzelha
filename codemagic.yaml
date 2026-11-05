@@ -1,0 +1,16 @@
+workflows:
+  ios-preview:
+    name: Free unsigned iOS preview and simulator test
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+    environment:
+      flutter: 3.47.7
+      xcode: latest
+    scripts:
+      - name: Build and verify without Apple signing credentials
+        script: bash tool/ios_preview.sh
+    artifacts:
+      - build/deliveries/Nazzelha-iOS-Unsigned.ipa
+      - build/deliveries/Nazzelha-iOS-Simulator.zip
+      - build/deliveries/IOS-SHA256SUMS.txt
+      - build/ios-preview/**

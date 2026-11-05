@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../services/python_service.dart';
+import '../services/runtime_platform.dart';
 
 class DownloadLocationButton extends StatefulWidget {
   final String? file;
@@ -52,9 +53,11 @@ class _DownloadLocationButtonState extends State<DownloadLocationButton> {
         ? widget.file == null
             ? (s.isAr ? 'حفظ البلايليست ZIP' : 'Save playlist ZIP')
             : (s.isAr ? 'حفظ على جهازك' : 'Save to your device')
-        : s.isAr
-            ? 'فتح مكان الملف'
-            : 'Open file location';
+        : RuntimePlatform.isIOS
+            ? (s.isAr ? 'فتح أو مشاركة الملفات' : 'Open or share files')
+            : s.isAr
+                ? 'فتح مكان الملف'
+                : 'Open file location';
     final icon = _opening
         ? const SizedBox(
             width: 18,

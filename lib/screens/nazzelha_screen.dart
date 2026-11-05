@@ -6,6 +6,7 @@ import '../l10n/app_strings.dart';
 import '../models/download_task.dart';
 import '../services/queue_controller.dart';
 import '../services/python_service.dart';
+import '../services/runtime_platform.dart';
 import '../theme/colors.dart';
 import '../widgets/download_task_card.dart';
 import '../widgets/app_settings_actions.dart';
@@ -106,9 +107,13 @@ class _NazzelhaScreenState extends State<NazzelhaScreen> {
                   Padding(
                       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                       child: Text(
-                          strings.isAr
-                              ? 'الويب المجاني: حتى ٩٦ ميجابايت للفيديو وحوالي ٤ دقائق لتجهيزه. احفظ الملفات قبل تحديث الصفحة أو إغلاقها.'
-                              : 'Free web: up to 96 MB per video and about 4 minutes to prepare it. Save files before reloading or closing this tab.',
+                          RuntimePlatform.isIOS
+                              ? (strings.isAr
+                                  ? 'نسخة iOS تجريبية: تستخدم خدمة الويب بحد 96 ميجابايت للملف. أبقِ التطبيق مفتوحًا أثناء التجهيز؛ قد يرفض YouTube طلبات الخدمة.'
+                                  : 'iOS preview: uses the hosted service with a 96 MB file limit. Keep the app open while preparing files; YouTube may reject the service.')
+                              : strings.isAr
+                                  ? 'الويب المجاني: حتى ٩٦ ميجابايت للفيديو وحوالي ٤ دقائق لتجهيزه. احفظ الملفات قبل تحديث الصفحة أو إغلاقها.'
+                                  : 'Free web: up to 96 MB per video and about 4 minutes to prepare it. Save files before reloading or closing this tab.',
                           style: Theme.of(context).textTheme.bodySmall)),
                 _addButton(isDark, strings),
                 Expanded(
