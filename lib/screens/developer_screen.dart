@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../l10n/app_strings.dart';
 import '../models/app_release.dart';
 import '../widgets/app_motion.dart';
+import '../widgets/app_statistics_card.dart';
 
 class DeveloperScreen extends StatefulWidget {
   const DeveloperScreen({super.key});
@@ -18,7 +19,6 @@ class _DeveloperScreenState extends State<DeveloperScreen> {
     super.initState();
     _edition = switch (defaultTargetPlatform) {
       TargetPlatform.android => AppEdition.android,
-      TargetPlatform.iOS => AppEdition.iosWeb,
       _ => AppEdition.windows,
     };
   }
@@ -42,7 +42,6 @@ class _DeveloperScreenState extends State<DeveloperScreen> {
   Widget build(BuildContext context) {
     final ar = AppStrings.of(context).isAr;
     final theme = Theme.of(context);
-    final ios = _edition == AppEdition.iosWeb;
     return Scaffold(
       appBar: AppBar(title: Text(ar ? 'عن المطور' : 'About the developer')),
       body: Align(
@@ -117,59 +116,67 @@ class _DeveloperScreenState extends State<DeveloperScreen> {
                                       color:
                                           theme.colorScheme.onSurfaceVariant)),
                               const SizedBox(height: 20),
-                              DropdownButtonFormField<AppEdition>(
-                                  key: const ValueKey('app-edition'),
-                                  initialValue: _edition,
-                                  isExpanded: true,
-                                  decoration: InputDecoration(
-                                      labelText: ar ? 'النسخة' : 'Edition'),
-                                  items: [
-                                    const DropdownMenuItem(
-                                        value: AppEdition.windows,
-                                        child: Text('Windows · ZIP')),
-                                    const DropdownMenuItem(
-                                        value: AppEdition.android,
-                                        child: Text('Android · APK')),
-                                    DropdownMenuItem(
-                                        value: AppEdition.iosWeb,
-                                        child: Text(ar
-                                            ? 'iPhone / iPad · ويب'
-                                            : 'iPhone / iPad · Web')),
-                                  ],
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() => _edition = value);
-                                    }
-                                  }),
+                              Row(children: [
+                                Expanded(
+                                    child: _editionButton(
+                                        AppEdition.windows,
+                                        'Windows',
+                                        Icons.desktop_windows_rounded)),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                    child: _editionButton(AppEdition.android,
+                                        'Android', Icons.android_rounded)),
+                              ]),
                               const SizedBox(height: 18),
                               AppActionButton(
                                   key: const ValueKey('download-app'),
                                   onPressed: () =>
                                       _open(AppRelease.url(_edition)),
-                                  icon: ios
-                                      ? Icons.open_in_browser_rounded
-                                      : Icons.download_rounded,
-                                  label: ios
-                                      ? (ar ? 'فتح نسخة الويب' : 'Open web app')
-                                      : (ar ? 'تحميل النسخة' : 'Download app')),
+                                  icon: Icons.download_rounded,
+                                  label: ar ? 'تحميل النسخة' : 'Download app'),
                               const SizedBox(height: 12),
                               Text(
-                                  ios
+                                  _edition == AppEdition.windows
                                       ? (ar
-                                          ? 'لا توجد نسخة iOS أصلية حاليًا. افتح الموقع في Safari واختر «إضافة إلى الشاشة الرئيسية» لاستخدام نسخة الويب.'
-                                          : 'A native iOS edition is not available yet. Open the website in Safari and choose Add to Home Screen to use the web app.')
-                                      : _edition == AppEdition.windows
-                                          ? (ar
-                                              ? 'فك ضغط الملف ثم شغّل Nazzelha.exe.'
-                                              : 'Extract the ZIP, then open Nazzelha.exe.')
-                                          : (ar
-                                              ? 'ملف APK لأجهزة أندرويد.'
-                                              : 'APK for Android devices.'),
+                                          ? 'فك ضغط الملف ثم شغّل Nazzelha.exe.'
+                                          : 'Extract the ZIP, then open Nazzelha.exe.')
+                                      : (ar
+                                          ? 'ملف APK لأجهزة أندرويد.'
+                                          : 'APK for Android devices.'),
                                   style: theme.textTheme.bodySmall?.copyWith(
                                       color:
                                           theme.colorScheme.onSurfaceVariant)),
                             ]))),
+                const SizedBox(height: 18),
+                const AppStatisticsCard(),
               ]))),
     );
+  }
+
+  Widget _editionButton(AppEdition edition, String label, IconData icon) {
+    final selected = _edition == edition;
+    final theme = Theme.of(context);
+    return Semantics(
+        selected: selected,
+        child: PressMotion(
+            child: OutlinedButton.icon(
+          key: ValueKey('edition-${edition.name}'),
+          onPressed: () => setState(() => _edition = edition),
+          icon: Icon(icon, size: 20),
+          label: Text(label),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 52),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            backgroundColor: selected
+                ? theme.colorScheme.primary.withValues(alpha: .12)
+                : null,
+            side: BorderSide(
+                color: selected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.outline),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        )));
   }
 }

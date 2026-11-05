@@ -9,6 +9,7 @@ import 'app.dart';
 import 'services/python_service.dart';
 import 'services/queue_controller.dart';
 import 'services/playlist_controller.dart';
+import 'services/app_statistics_service.dart';
 import 'theme/locale_provider.dart';
 import 'theme/theme_provider.dart';
 
@@ -53,6 +54,9 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        Provider(
+            create: (_) => AppStatisticsService(),
+            dispose: (_, service) => service.dispose()),
         Provider<Logger>.value(value: logger),
         Provider<PythonService>.value(value: pythonService),
         ChangeNotifierProvider(

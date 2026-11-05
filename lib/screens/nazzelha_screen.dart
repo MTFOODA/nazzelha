@@ -95,16 +95,7 @@ class _NazzelhaScreenState extends State<NazzelhaScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          strings.appTitle,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600)
-              .copyWith(fontFamilyFallback: const ['Tajawal']),
-        ),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor:
-            isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-        foregroundColor: isDark ? AppColors.textDark : AppColors.textLight,
+        title: Text(strings.appTitle),
         actions: const [AppSettingsActions(), SizedBox(width: 8)],
       ),
       body: !_loaded

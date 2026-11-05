@@ -1,8 +1,10 @@
+import { statistics } from './statistics.mjs';
 const allowed = /^(?:health|command|download|cancel|archive|files\/[a-f0-9]{48})$/;
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/api/stats' || url.pathname === '/api/stats/visit') return statistics(request, env, url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     const path = url.pathname.slice(5);
     if (!allowed.test(path)) return new Response('Not found', { status: 404 });

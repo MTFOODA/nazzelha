@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:provider/provider.dart';
+import '../services/app_statistics_service.dart';
 import '../l10n/app_strings.dart';
 import '../widgets/app_motion.dart';
 import 'playlist_history_screen.dart';
@@ -12,6 +15,12 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(context.read<AppStatisticsService>().recordWebsiteVisit());
+  }
+
   int _index = 0;
   static const _pages = [
     NazzelhaScreen(),

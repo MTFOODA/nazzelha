@@ -1,4 +1,8 @@
 import 'dart:io';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:nazzelha/services/app_statistics_service.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -68,6 +72,18 @@ void main() {
         ChangeNotifierProvider.value(value: queue),
         ChangeNotifierProvider.value(value: theme),
         ChangeNotifierProvider.value(value: locale),
+        Provider(
+            create: (_) => AppStatisticsService(
+                client: MockClient((_) async => http.Response(
+                    jsonEncode({
+                      'visits': 123,
+                      'downloads': {
+                        'windows': 12,
+                        'android': 34,
+                        'stale': false
+                      }
+                    }),
+                    200)))),
       ], child: const RepaintBoundary(key: boundaryKey, child: MyApp())));
       await tester.pump(const Duration(milliseconds: 1200));
       await tester.pumpAndSettle();
@@ -98,25 +114,33 @@ void main() {
       await tester.runAsync(() async {
         final context = tester.element(find.byType(DeveloperScreen));
         await precacheImage(githubIcon.image, context);
-        await precacheImage(const AssetImage('assets/brands/linkedin.png'), context);
+        await precacheImage(
+            const AssetImage('assets/brands/linkedin.png'), context);
       });
       await tester.pump();
       await capture('developer-');
       expect(
           find.text(spec.ar ? 'محمد فودة' : 'Mohamed Fooda'), findsOneWidget);
-      final edition = find.byKey(const ValueKey('app-edition'));
-      await tester.ensureVisible(edition);
-      await tester.tap(edition);
-      await tester.pumpAndSettle();
-      await tester.tap(find
-          .text(spec.ar ? 'iPhone / iPad · ويب' : 'iPhone / iPad · Web')
-          .last);
+      expect(find.byType(DropdownButtonFormField<AppEdition>), findsNothing);
+      final androidEdition = find.byKey(const ValueKey('edition-android'));
+      await tester.ensureVisible(androidEdition);
+      await tester.tap(androidEdition);
       await tester.pumpAndSettle();
       expect(
-          find.textContaining(spec.ar
-              ? 'لا توجد نسخة iOS أصلية'
-              : 'A native iOS edition is not available'),
+          find.text(
+              spec.ar ? 'ملف APK لأجهزة أندرويد.' : 'APK for Android devices.'),
           findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('edition-windows')));
+      await tester.pumpAndSettle();
+      expect(
+          find.text(spec.ar
+              ? 'فك ضغط الملف ثم شغّل Nazzelha.exe.'
+              : 'Extract the ZIP, then open Nazzelha.exe.'),
+          findsOneWidget);
+      await tester.ensureVisible(find.text('123'));
+      expect(find.text('12'), findsOneWidget);
+      expect(find.text('34'), findsOneWidget);
+      await capture('statistics-');
       expect(
           AppRelease.url(AppEdition.android)
               .path
