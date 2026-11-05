@@ -2,6 +2,8 @@
 
 Nazzelha is a Flutter media downloader for video content from supported platforms. The app uses a Python backend with `yt-dlp` and `FFmpeg` to inspect sources, select quality, and download media locally.
 
+[Official website](https://nazzelha.mohamed-fooda-mtf.workers.dev/) · [Download Android / Windows](https://github.com/MTFOODA/nazzelha/releases/latest) · [الدليل العربي](docs/USER_GUIDE_AR.md) · [Annotated walkthrough](docs/guide-ar.html)
+
 ## Features
 
 - Download media from supported sites such as YouTube, Facebook, Instagram, and TikTok
@@ -14,16 +16,17 @@ Nazzelha is a Flutter media downloader for video content from supported platform
 
 ## Supported platforms
 
-Verified in the current repository:
+| Edition | Support |
+| --- | --- |
+| Android | Android 7 / API 24 and later; universal ARM, ARM64 and x86_64 APK. Clean installation and upgrade tested on Android 7 and Android 17 (4 KB and 16 KB pages), not every intermediate OS separately. |
+| Windows x64 | Portable app with the local Python, FFmpeg and Node engine bundled. |
+| Public web | Cloudflare website with a stateless Python API on Vercel. Tested in Edge; no local server required for visitors. |
+| iPhone / iPad | Web edition only; no native IPA. |
+| Linux / macOS | Native builds are not configured and verified. |
 
-- Android: primary mobile target with native Python/FFmpeg integration
-- Windows desktop: supported via the Flutter desktop shell and local Python backend
-- Edge: supported with the loopback Python bridge (`python python_backend/web_bridge.py`)
-
-Not currently described as a verified primary target in this repo:
-
-- iOS, Linux, and macOS are not configured as supported app targets here
-- The browser build requires the local Python bridge; it cannot run Python/FFmpeg inside the browser.
+Android background downloading belongs to the installed application's foreground
+service. Browser preparation needs the tab to stay open and has free hosting
+limits. The public hosting network can be rejected by upstream video services.
 
 ## Technology stack
 
@@ -35,7 +38,12 @@ Not currently described as a verified primary target in this repo:
 
 ## Demo video
 
-[Watch the Demo Video](ADD_VIDEO_URL_HERE)
+[Arabic illustrated walkthrough — 3:05](docs/media/Nazzelha-Walkthrough-AR.mp4)
+
+[Chapters and scope](docs/DEMO.md) · [Interactive button annotations](docs/guide-ar.html).
+The video uses application UI captures and labeled demonstration data; it is
+not a new live screen recording. Actual installation and download results are
+recorded separately in [the verification summary](docs/verification-1.1.3.json).
 
 ## Prerequisites
 
@@ -70,9 +78,8 @@ flutter run -d windows
 Android:
 
 ```bash
-flutter build apk
-# or
-flutter build appbundle
+python tool/prepare_release_signing.py
+python tool/build_android_release.py
 ```
 
 Windows:
@@ -92,6 +99,11 @@ $env:CHAQUOPY_BUILD_PYTHON = "C:\Path\To\python.exe"
 ## Documentation
 
 See the Python backend notes in [`python_backend/README.md`](python_backend/README.md) for backend protocol details and the download workflow.
+
+- [Arabic manual: every button, workflow and platform limit](docs/USER_GUIDE_AR.md)
+- [Android installation, integrity and compatibility evidence](docs/ANDROID_INSTALLATION.md)
+- [Release build and publication instructions](docs/RELEASES.md)
+- [Workspace cleanup scope and retained files](docs/CLEANUP.md)
 
 ## Limitations
 

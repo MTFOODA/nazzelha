@@ -12,6 +12,13 @@ flutter = os.environ.get('FLUTTER_BIN') or shutil.which('flutter')
 if not flutter:
     raise SystemExit('Put Flutter on PATH or set FLUTTER_BIN.')
 subprocess.run([flutter, 'build', 'apk', '--release', '--config-only', '--no-pub'], cwd=root, check=True)
+# Keep Flutter's Windows paths semantically unchanged while satisfying Android
+# lint's property-file escaping check (the drive colon must be escaped too).
+properties = root / 'android/local.properties'
+source = properties.read_text(encoding='utf-8')
+source = re.sub(r'^((?:sdk\.dir|flutter\.sdk)=)([A-Za-z]):',
+    lambda match: match[1] + match[2] + r'\:', source, flags=re.M)
+properties.write_text(source, encoding='utf-8')
 # Some SDK distributions leave development plugins in the Java registrant while
 # Gradle correctly excludes their release dependencies. Remove only those
 # generated registration blocks; never edit the SDK or include test plugins in

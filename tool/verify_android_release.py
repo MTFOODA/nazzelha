@@ -1,6 +1,7 @@
 """Check a distributable APK independently of the Gradle build configuration."""
 import argparse
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,25 @@ import zipfile
 
 CERTIFICATE = '18e10d4f4200ab4d54c82cf7c7e940ff9465488aee05240978d0610011c7d045'
 ABIS = {'arm64-v8a', 'armeabi-v7a', 'x86_64'}
+
+
+def check_elf(data, name, abi):
+    if data[:4] != b'\x7fELF':
+        raise ValueError('Invalid native library: ' + name)
+    order = '<' if data[5] == 1 else '>'
+    machine = struct.unpack_from(order + 'H', data, 18)[0]
+    expected = {'arm64-v8a': (2, 183), 'armeabi-v7a': (1, 40), 'x86_64': (2, 62)}[abi]
+    if (data[4], machine) != expected:
+        raise ValueError('Native machine architecture does not match its ABI: ' + name)
+    if abi == 'armeabi-v7a':
+        return  # 16 KB page-size enforcement concerns 64-bit ABIs.
+    offset = struct.unpack_from(order + 'Q', data, 32)[0]
+    entry_size, count = struct.unpack_from(order + 'HH', data, 54)
+    for i in range(count):
+        pos = offset + i * entry_size
+        if struct.unpack_from(order + 'I', data, pos)[0] == 1:
+            if struct.unpack_from(order + 'Q', data, pos + 48)[0] < 16384:
+                raise ValueError('Native library is not 16 KB aligned: ' + name)
 
 
 def verify(apk, sdk):
@@ -31,6 +51,7 @@ def verify(apk, sdk):
     if not package or package[1] != 'com.example.nazzelha' or minimum != 24:
         raise ValueError('Unexpected package identity or minimum Android version.')
     libraries = {}
+    ffmpeg_libraries = {}
     with zipfile.ZipFile(apk) as archive:
         if archive.testzip() is not None:
             raise ValueError('The APK contains a corrupt ZIP member.')
@@ -47,24 +68,24 @@ def verify(apk, sdk):
                 if name.endswith('/libffmpeg.zip.so'):
                     if not data.startswith(b'PK'):
                         raise ValueError('Invalid FFmpeg library archive: ' + name)
+                    with zipfile.ZipFile(io.BytesIO(data)) as packed:
+                        if packed.testzip() is not None:
+                            raise ValueError('Corrupt packed FFmpeg library: ' + name)
+                        count = 0
+                        for entry in packed.infolist():
+                            payload = packed.read(entry)
+                            if payload.startswith(b'\x7fELF'):
+                                check_elf(payload, name + '/' + entry.filename, abi)
+                                count += 1
+                        if not count:
+                            raise ValueError('Missing FFmpeg shared libraries: ' + name)
+                        ffmpeg_libraries[abi] = count
                     continue
-                if data[:4] != b'\x7fELF':
-                    raise ValueError('Invalid native library: ' + name)
-                if abi == 'armeabi-v7a':
-                    continue  # 16 KB page-size enforcement concerns 64-bit ABIs.
-                order = '<' if data[5] == 1 else '>'
-                if data[4] != 2:
-                    raise ValueError('Expected a 64-bit ELF: ' + name)
-                offset = struct.unpack_from(order + 'Q', data, 32)[0]
-                entry_size, count = struct.unpack_from(order + 'HH', data, 54)
-                for i in range(count):
-                    pos = offset + i * entry_size
-                    if struct.unpack_from(order + 'I', data, pos)[0] == 1:
-                        if struct.unpack_from(order + 'Q', data, pos + 48)[0] < 16384:
-                            raise ValueError('Native library is not 16 KB aligned: ' + name)
+                check_elf(data, name, abi)
     return dict(package=package[1], version=package[3], version_code=int(package[2]), min_sdk=minimum,
                 bytes=apk.stat().st_size, sha256=hashlib.file_digest(apk.open('rb'), 'sha256').hexdigest(),
-                certificate_sha256=certificate, native_libraries=libraries, zip_alignment_16k=True)
+                certificate_sha256=certificate, native_libraries=libraries,
+                packed_ffmpeg_libraries=ffmpeg_libraries, zip_alignment_16k=True)
 
 
 if __name__ == '__main__':

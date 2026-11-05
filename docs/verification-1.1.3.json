@@ -1,0 +1,122 @@
+{
+  "tested_on": "2026-11-05",
+  "candidate_version": "1.1.3+5",
+  "candidate_apk_sha256": "6b651232cfc05a0f92baac413cc030d0a58de9aab2562b3ce788aa2127076e2e",
+  "android_emulator_installations": [
+    {
+      "android": "7.0",
+      "api": "24",
+      "abi": "x86_64",
+      "page_size": "4096",
+      "cases": {
+        "previous_release": {
+          "result": "Performing Streamed Install\nSuccess",
+          "version": "1.1.2",
+          "sha256": "76b48e54c48b0a75411b0df48419d5f26a086c3b3d3f1716a56c96cdc574b75e"
+        },
+        "upgrade": {
+          "result": "Performing Streamed Install\nSuccess",
+          "version": "1.1.3",
+          "sha256": "6b651232cfc05a0f92baac413cc030d0a58de9aab2562b3ce788aa2127076e2e",
+          "preferences_preserved": true
+        },
+        "clean_install": {
+          "result": "Performing Streamed Install\nSuccess",
+          "version": "1.1.3",
+          "sha256": "6b651232cfc05a0f92baac413cc030d0a58de9aab2562b3ce788aa2127076e2e",
+          "launch_success": true,
+          "ffmpeg_run_ok": true
+        }
+      }
+    },
+    {
+      "android": "17",
+      "api": "37",
+      "abi": "x86_64",
+      "page_size": "4096",
+      "cases": {
+        "previous_release": {
+          "result": "Performing Streamed Install\nSuccess",
+          "version": "1.1.2",
+          "sha256": "76b48e54c48b0a75411b0df48419d5f26a086c3b3d3f1716a56c96cdc574b75e"
+        },
+        "upgrade": {
+          "result": "Performing Streamed Install\nSuccess",
+          "version": "1.1.3",
+          "sha256": "6b651232cfc05a0f92baac413cc030d0a58de9aab2562b3ce788aa2127076e2e",
+          "preferences_preserved": true
+        },
+        "clean_install": {
+          "result": "Performing Streamed Install\nSuccess",
+          "version": "1.1.3",
+          "sha256": "6b651232cfc05a0f92baac413cc030d0a58de9aab2562b3ce788aa2127076e2e",
+          "launch_success": true,
+          "ffmpeg_run_ok": true
+        }
+      }
+    },
+    {
+      "android": "17",
+      "api": "37",
+      "abi": "x86_64",
+      "page_size": "16384",
+      "cases": {
+        "previous_release": {
+          "result": "Performing Streamed Install\nSuccess",
+          "version": "1.1.2",
+          "sha256": "76b48e54c48b0a75411b0df48419d5f26a086c3b3d3f1716a56c96cdc574b75e"
+        },
+        "upgrade": {
+          "result": "Performing Streamed Install\nSuccess",
+          "version": "1.1.3",
+          "sha256": "6b651232cfc05a0f92baac413cc030d0a58de9aab2562b3ce788aa2127076e2e",
+          "preferences_preserved": true
+        },
+        "clean_install": {
+          "result": "Performing Streamed Install\nSuccess",
+          "version": "1.1.3",
+          "sha256": "6b651232cfc05a0f92baac413cc030d0a58de9aab2562b3ce788aa2127076e2e",
+          "launch_success": true,
+          "ffmpeg_run_ok": true
+        }
+      }
+    }
+  ],
+  "physical_device": {
+    "model": "Xiaomi 15T Pro",
+    "os": "HyperOS 3.0.337.0 / Android 17",
+    "api": 37,
+    "abi": "arm64-v8a",
+    "page_size": 4096,
+    "tested_public_apk": "1.1.2",
+    "browser_download_installed_and_opened": true,
+    "python_ready": true,
+    "ffmpeg_run_ok": true,
+    "old_local_apk_failed_crc_and_signature": true
+  },
+  "facebook_android_7_background": {
+    "url": "https://www.facebook.com/share/v/14ub8NMwKXx/",
+    "status": "completed",
+    "bytes": 1062959,
+    "filename": "API24Acceptance.mp4",
+    "transient_tls_error_then_resume_succeeded": true,
+    "persisted_result_verified": true,
+    "media_decode_check": "not performed after execution approval limit"
+  },
+  "windows_1_1_3": {
+    "bundled_engine_startup": true,
+    "external_python_node_ffmpeg_not_on_path": true
+  },
+  "youtube_playlist": {
+    "url": "https://youtube.com/playlist?list=PLPqyWmL4W9D0",
+    "metadata_count": 3,
+    "public_hosting_media_rejected_by_upstream": true
+  },
+  "not_verified": [
+    "every Android version between 7 and 17 separately",
+    "native iOS, Linux or macOS builds",
+    "final 1.1.3 installation on physical Xiaomi",
+    "fresh live narrated screen recording"
+  ],
+  "publication": "prepared locally; release publication pending"
+}

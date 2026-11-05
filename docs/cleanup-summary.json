@@ -1,0 +1,18 @@
+{
+  "scope": "Nazzelha workspace only; no physical-phone downloads or other repositories touched",
+  "deleted_items": 249,
+  "freed_bytes": 499122574,
+  "retained_root_files": [
+    "_INSTALL_RESUME.md",
+    "_api24_legacy_features.log",
+    "_build_ffmpeg_16k.sh",
+    "_ff_finalize.py",
+    "_install_ffmpeg_16k.py",
+    "_revert_jniLibs.py",
+    "_verify_final.py"
+  ],
+  "source_tests_preserved": true,
+  "active_emulator_data_preserved": true,
+  "release_signing_and_credentials_preserved": true,
+  "original_ffmpeg_backup_retained_for_documented_rebuild_and_rollback": true
+}

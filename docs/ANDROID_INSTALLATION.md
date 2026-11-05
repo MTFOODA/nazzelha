@@ -68,6 +68,70 @@ ABIs, required native tools, ZIP alignment, and 16 KB ELF alignment for both
 python tool/verify_android_release.py build/deliveries/Nazzelha-Android.apk --expected-version 1.1.3 --expected-version-code 5
 ```
 
-The user-reported HyperOS 3.0.337.0 / Android 17 CP2A / Xiaomi 15T Pro refusal
-was not reproduced on the stock emulator. These checks do not establish its
-specific cause. Read the affected device's installer log to confirm that cause.
+## Physical Xiaomi browser installation
+
+On 2026-11-05, the user downloaded the public 1.1.2 APK through the official
+website in Edge on a Xiaomi 15T Pro running HyperOS 3.0.337.0 / Android 17
+(API 37, ARM64, 4 KB pages). Installation through the phone's normal installer
+succeeded and the app opened. Its embedded Python engine reported `ready: true`
+and `ffmpeg_run_ok: true`. The downloaded file matched the public SHA-256 above.
+
+The older rejected APK still in the phone's Downloads folder had the same byte
+length, but SHA-256
+`ebdfb04d8e0520a39ad71103c964119551191a928f4ddbae94e4b45a1cf93e34`.
+Its ZIP CRC check failed for `lib/armeabi-v7a/libffmpeg.zip.so`, and Android's
+`apksigner verify` returned `APK integrity check failed` with a v2 content-digest
+mismatch. This establishes that the old local APK was corrupt; it does not
+establish where that corruption happened. A fresh download resolved the observed
+installation failure without changing the APK signing identity, deleting app
+data, or disabling security checks. USB touch control was restricted by HyperOS,
+so the user pressed the download and installation controls while diagnostics
+were collected over ADB.
+
+## Release download callback compatibility
+
+A live Facebook download in the signed release reproduced
+`AttributeError: 'o' object has no attribute 'isCancelled'`. R8 had renamed or
+removed `ProgressSink` methods used dynamically by Chaquopy from Python, so
+successful extraction was followed by a failure at the first progress hook.
+`android/app/proguard-rules.pro` preserves this interface and the two callback
+methods in its activity/service implementations. Other code remains optimized.
+See Android's [keep-rule guidance](https://developer.android.com/topic/performance/app-optimization/keep-rules-overview)
+for dynamic calls outside R8's call graph. Signed-release download acceptance
+must exercise the real foreground service, not just startup or a debug build.
+
+## Candidate 1.1.3 verification
+
+The corrected signed APK (version code 5) passed the independent package gate,
+including all three ABI machine types and the eight packed FFmpeg shared
+libraries in each ABI. Its current SHA-256 is:
+
+```
+6b651232cfc05a0f92baac413cc030d0a58de9aab2562b3ce788aa2127076e2e
+```
+
+On Android 7, both updating public 1.1.2 to this candidate and uninstalling then
+installing the candidate succeeded. The update retained a seeded preference
+(the old release cannot open on this OS). The corrected app opened normally and
+reported `ready: true` and `ffmpeg_run_ok: true`. Android release lint completed
+with zero errors and 29 warnings. Flutter analysis passed and 44 tests passed
+(two optional live tests skipped).
+
+On Android 17/API 37 x86_64 with both 4 KB and 16 KB pages, updating public 1.1.2 to the final
+candidate succeeded with the theme preference preserved. Removing the app and
+installing the candidate also succeeded; the app opened and FFmpeg reported
+ready. Windows 1.1.3's portable package started its bundled engine with Python,
+Node and FFmpeg absent from PATH.
+
+A real download of the public Facebook example completed with the activity
+backgrounded on Android 7 after this final callback fix. The persisted terminal
+result was `success: true`, `phase: completed`, with a 1,062,959-byte
+`API24Acceptance.mp4` in the public Downloads folder. The first request had a
+transient TLS record error; the normal Resume action succeeded. A decode check
+of that particular downloaded file was not completed after automatic command
+approval reached its usage limit. These results do not establish successful
+access to private/account-only sources or every supported platform.
+
+The physical-device browser installation above used public 1.1.2; the final
+1.1.3 artifact was tested on the three emulator configurations described here.
+Use GitHub Releases to determine the currently published version.

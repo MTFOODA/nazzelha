@@ -85,3 +85,31 @@ were verified in Edge after replacing an older concurrent automatic deployment.
 Statistics persistence, 30-minute visit sessions, direct GitHub file counts and
 15-minute refresh behavior are documented in [STATISTICS.md](STATISTICS.md).
 The native Android statistics panel also loaded the same live counts.
+
+## 1.1.3 compatibility and documentation artifacts
+
+The final signed Android package fixes the Android 7 runtime calls and R8's
+renaming/removal of Python-facing progress/cancellation callbacks. Update,
+clean-install, launch and FFmpeg startup passed on API 24 and API 37 with both
+4 KB and 16 KB pages. A real public Facebook download completed with the API 24
+activity backgrounded after resuming a transient TLS failure. Windows 1.1.3's
+bundled-engine startup also passed. See [installation evidence](ANDROID_INSTALLATION.md).
+
+The documentation package includes an Arabic manual, a guide with 40 numbered
+control locations, the 3:05 captioned illustrated MP4 and its editable source.
+The video is not a new live interaction recording. See [demo scope](DEMO.md).
+
+Prepare these files in `build/deliveries/` before running
+`python tool/publish_release.py --publish`:
+
+- `Nazzelha-Android.apk`
+- `Nazzelha-Windows-x64.zip`
+- `Nazzelha-Documentation.zip`
+- `Nazzelha-Walkthrough-AR.mp4`
+
+The publisher generates `SHA256SUMS.txt`, uploads a draft, validates GitHub
+asset digests and sizes, then publishes when `--publish` is present. It obtains
+the GitHub credential in memory from Git Credential Manager and never prints
+or uploads it. Commit and push the reviewed source first. An already-public
+version's assets are not overwritten. This helper is currently prepared for
+tag `v1.1.3`; review the version and notes before reusing it for another release.

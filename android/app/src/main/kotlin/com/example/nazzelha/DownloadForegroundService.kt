@@ -16,6 +16,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.provider.MediaStore
 import android.system.Os
+import androidx.annotation.RequiresApi
 import android.util.Log
 import com.chaquo.python.PyObject
 import com.chaquo.python.Python
@@ -693,6 +694,7 @@ class DownloadForegroundService : Service() {
         return if (folder.isNullOrBlank()) base else "$base/Playlists/${safeDisplayName(folder) ?: "Playlist"}"
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun persistViaMediaStore(src: File, displayName: String, platform: String, folder: String?): Pair<String, String> {
         val resolver = contentResolver
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI

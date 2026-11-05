@@ -17,6 +17,8 @@ import android.os.Looper
 import android.provider.MediaStore
 import android.provider.DocumentsContract
 import android.system.Os
+import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import android.util.Log
 import com.chaquo.python.PyObject
 import com.chaquo.python.Python
@@ -123,11 +125,7 @@ class MainActivity : FlutterActivity() {
             }
         }
         val filter = android.content.IntentFilter(action)
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(debugReceiver, filter, android.content.Context.RECEIVER_EXPORTED)
-        } else {
-            registerReceiver(debugReceiver, filter)
-        }
+        ContextCompat.registerReceiver(this, debugReceiver, filter, ContextCompat.RECEIVER_EXPORTED)
         Log.i(TAG, "DEBUG_TIKTOK test hook registered")
     }
 
@@ -162,11 +160,7 @@ class MainActivity : FlutterActivity() {
             addAction(DownloadForegroundService.ACTION_PROGRESS)
             addAction(DownloadForegroundService.ACTION_RESULT)
         }
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
-        } else {
-            registerReceiver(receiver, filter)
-        }
+        ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         Log.i(TAG, "download receiver registered")
     }
 
@@ -905,6 +899,7 @@ class MainActivity : FlutterActivity() {
     }
 
     /** Android 10+: insert into the MediaStore Downloads collection. */
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun persistViaMediaStore(src: File, displayName: String): Pair<String, String> {
         val resolver = contentResolver
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
