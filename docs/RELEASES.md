@@ -1,6 +1,6 @@
-# Release 1.1.0
+# Release 1.1.1
 
-Version: `1.1.0+2`. GitHub asset names used by the app's developer page:
+Version: `1.1.1+3`. Official GitHub/LinkedIn profile marks, theme-aware GitHub variants, and corrected video-only quality menus. GitHub asset names used by the app's developer page:
 
 - `Nazzelha-Android.apk`: signed universal release APK.
 - `Nazzelha-Windows-x64.zip`: portable Windows x64 application and download engine.
@@ -56,3 +56,20 @@ from PATH to verify that the bundled engine is used.
 
 Publish assets against the matching source commit/tag and verify each public
 download URL before announcing the release. Never publish `.release/` contents.
+
+## Verification on 2026-11-05
+
+- Flutter: analyzer clean; 42 tests passed, two optional live tests skipped.
+- Python: 24 tests passed, including storyboard/audio quality exclusion.
+- Cloudflare Worker: four routing/isolation tests passed.
+- Edge 156: public 1.1.1 UI and official logos rendered; browser byte/ZIP
+  harness passed with exact Arabic folder names and complete contents.
+- Android: signed APK version 1.1.1/code 3 verified and installed as an update
+  on the dedicated emulator; developer screen inspected. The earlier native
+  background playlist and per-entry control integration checks passed.
+- Windows: version 1.1.1+3 portable app starts its bundled engine with Python,
+  Node and FFmpeg absent from PATH and JAVA_HOME empty.
+- Public Vercel: Facebook example produced an MP4 with AV1 video/AAC audio.
+  YouTube playlist metadata returned three entries; media requests were
+  rejected by YouTube from the hosting network. See VERCEL.md for web limits.
+- No native iOS build or physical iPhone verification was performed.
