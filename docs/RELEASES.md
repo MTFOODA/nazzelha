@@ -1,6 +1,6 @@
-# Release 1.1.1
+# Release 1.1.2
 
-Version: `1.1.1+3`. Official GitHub/LinkedIn profile marks, theme-aware GitHub variants, and corrected video-only quality menus. GitHub asset names used by the app's developer page:
+Version: `1.1.2+4`. Persistent website visit totals, separate Windows/Android release-download counts, two platform selection buttons, and a consistent header across all three destinations. GitHub asset names used by the app's developer page:
 
 - `Nazzelha-Android.apk`: signed universal release APK.
 - `Nazzelha-Windows-x64.zip`: portable Windows x64 application and download engine.
@@ -59,25 +59,29 @@ download URL before announcing the release. Never publish `.release/` contents.
 
 ## Verification on 2026-11-05
 
-- Flutter: analyzer clean; 42 tests passed, two optional live tests skipped.
+- Flutter: analyzer clean; 44 tests passed, two optional live tests skipped.
 - Python: 24 tests passed, including storyboard/audio quality exclusion.
-- Cloudflare Worker: four routing/isolation tests passed.
-- Edge 156: public 1.1.1 UI and official logos rendered; browser byte/ZIP
+- Cloudflare Worker: eight statistics/routing/isolation tests passed.
+- Edge 156: public 1.1.2 UI, platform selections and live counters verified on both domains; reload preserved the visit session; browser byte/ZIP
   harness passed with exact Arabic folder names and complete contents.
-  The real Facebook sample was also downloaded through the published Flutter
+  In the preceding 1.1.1 verification, the real Facebook sample was also downloaded through the published Flutter
   card and saved using its Save to your device button. The saved MP4 matched
   the API's SHA-256 digest and decoded with FFmpeg without errors.
-- Android: signed APK version 1.1.1/code 3 verified and installed as an update
+- Android: signed APK version 1.1.2/code 4 verified and installed as an update
   on the dedicated emulator; developer screen inspected. The earlier native
   background playlist and per-entry control integration checks passed.
-- Windows: version 1.1.1+3 portable app starts its bundled engine with Python,
+- Windows: version 1.1.2+4 portable app starts its bundled engine with Python,
   Node and FFmpeg absent from PATH and JAVA_HOME empty.
 - Public Vercel: Facebook example produced an MP4 with AV1 video/AAC audio.
   YouTube playlist metadata returned three entries; media requests were
   rejected by YouTube from the hosting network. See VERCEL.md for web limits.
 - No native iOS build or physical iPhone verification was performed.
 
-Published release: https://github.com/MTFOODA/nazzelha/releases/tag/v1.1.1.
+Published release: https://github.com/MTFOODA/nazzelha/releases/tag/v1.1.2.
 All three release asset URLs were verified anonymously. Uploaded APK/ZIP hashes
-match the local SHA256SUMS.txt. Public Cloudflare API routing and version 1.1.1
+match the local SHA256SUMS.txt. Public Cloudflare API routing and version 1.1.2
 were verified in Edge after replacing an older concurrent automatic deployment.
+
+Statistics persistence, 30-minute visit sessions, direct GitHub file counts and
+15-minute refresh behavior are documented in [STATISTICS.md](STATISTICS.md).
+The native Android statistics panel also loaded the same live counts.
