@@ -39,6 +39,7 @@ jobs:
             build/deliveries/Nazzelha-iOS-Unsigned.ipa
             build/deliveries/Nazzelha-iOS-Simulator.zip
             build/deliveries/IOS-SHA256SUMS.txt
-            build/ios-preview/
+            build/ios-preview/*.json
+            build/ios-preview/*.png
           if-no-files-found: warn
           retention-days: 14

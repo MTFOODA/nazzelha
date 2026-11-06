@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:logger/logger.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nazzelha/services/playlist_controller.dart';
 import 'package:nazzelha/services/python_service.dart';
 
 void main() {
@@ -16,6 +18,7 @@ void main() {
     String? saved;
     await tester.runAsync(() async {
       final bytes = List<int>.generate(4099, (i) => i % 251);
+      final commands = <String>[];
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 8127);
       server.listen((request) async {
         request.response.headers.contentType = ContentType.json;
@@ -23,8 +26,10 @@ void main() {
           request.response
               .write(jsonEncode({'ready': true, 'transfer': 'browser'}));
         } else {
-          await request.drain<void>();
+          final body =
+              jsonDecode(await utf8.decoder.bind(request).join()) as Map;
           if (request.uri.path.endsWith('/command')) {
+            commands.add(body['action'].toString());
             request.response.write(jsonEncode({
               'success': true,
               'qualities': [360, 720]
@@ -67,6 +72,36 @@ void main() {
         saved = service.lastDownloadResult!['file'] as String;
         expect(saved, contains('/Playlists/تجربة عربية/'));
         expect(await File(saved!).readAsBytes(), bytes);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+            PlaylistController.historyKey,
+            jsonEncode([
+              {
+                'id': 'ios-smoke',
+                'folder': 'تجربة عربية',
+                'status': 'completed',
+                'entries': [
+                  {
+                    'id': 'abcdefghijk',
+                    'index': 1,
+                    'status': 'completed',
+                    'file': saved
+                  }
+                ]
+              }
+            ]));
+        final history = PlaylistController(service);
+        try {
+          await history.load();
+          expect(history.error, isNull);
+          expect(history.completed, 1);
+          expect(commands, ['get_qualities'],
+              reason:
+                  'iOS must not send desktop folder repair commands to the hosted API.');
+        } finally {
+          history.dispose();
+          await prefs.clear();
+        }
       } finally {
         await service.dispose();
         await server.close(force: true);

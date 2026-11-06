@@ -89,7 +89,9 @@ class PlaylistController extends ChangeNotifier {
           _remember(job!);
         }
       }
-      if (!kIsWeb && !RuntimePlatform.isAndroid && python.isInitialized) {
+      if (!python.usesHostedBackend &&
+          !RuntimePlatform.isAndroid &&
+          python.isInitialized) {
         for (final saved in _history) {
           final files = visibleEntries(saved)
               .map((e) => e['file']?.toString() ?? '')
