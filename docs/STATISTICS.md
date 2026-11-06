@@ -2,7 +2,8 @@
 
 The developer page shows website visits and separate Windows/Android file
 download counts. Windows and Android use selection buttons; the Download action
-opens the selected release asset. Native iOS is not a downloadable edition.
+opens the selected stable release asset. The separate unsigned iOS preview is
+distributed through its prerelease and is excluded from these stable counters.
 
 The canonical Cloudflare Worker serves `/api/stats` and `/api/stats/visit` using
 the free-plan D1 binding `STATS_DB`. Its additive migration lives in
