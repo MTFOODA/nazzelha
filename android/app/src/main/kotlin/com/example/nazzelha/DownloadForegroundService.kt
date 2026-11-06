@@ -15,7 +15,6 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.MediaStore
-import android.system.Os
 import androidx.annotation.RequiresApi
 import android.util.Log
 import com.chaquo.python.PyObject
@@ -323,6 +322,7 @@ class DownloadForegroundService : Service() {
                             filename: String?, job: JSONObject? = null,
                             entry: JSONObject? = null): Map<String, Any?> {
         var lastPersist = 0L
+        var lastProgressLog = 0L
         fun entryRemoved(): Boolean = job != null && entry != null &&
             isEntryRemoved(applicationContext, job.optString("id"), entryKey(entry, 0))
         val sink = object : ProgressSink {
@@ -331,6 +331,11 @@ class DownloadForegroundService : Service() {
                 if (isCancelled()) throw IOException("Download cancelled")
                 val payload = try { jsonToMap(json) } catch (e: Exception) { null }
                 val percent = ((payload?.get("percent") as? Number)?.toDouble() ?: 0.0)
+                val monotonicNow = android.os.SystemClock.elapsedRealtime()
+                if (lastProgressLog == 0L || monotonicNow - lastProgressLog >= 10000L) {
+                    Log.i(TAG, "Download progress task=$taskId percent=$percent bytes=${payload?.get("downloaded_bytes")}")
+                    lastProgressLog = monotonicNow
+                }
                 currentState?.let { it["phase"] = "downloading"; it["percent"] = percent }
                 if (job != null && entry != null) {
                     entry.put("progress", percent.toInt().coerceIn(0, 99))
@@ -483,19 +488,21 @@ class DownloadForegroundService : Service() {
     }
 
     private fun ensureInitialized() {
-        if (!Python.isStarted()) {
-            Log.i(TAG, "Starting Chaquopy Python runtime from service")
-            Python.start(AndroidPlatform(applicationContext))
+        synchronized(NativeMediaRuntime.initializationLock) {
+            if (!Python.isStarted()) {
+                Log.i(TAG, "Starting Chaquopy Python runtime from service")
+                Python.start(AndroidPlatform(applicationContext))
+            }
+            val module = Python.getInstance().getModule("android_backend")
+            val ffmpeg = prepareFFmpegRuntime()
+            val pyTempDir = File(cacheDir, "pytmp")
+            if (!pyTempDir.exists()) pyTempDir.mkdirs()
+            module.callAttr(
+                "initialize",
+                ffmpeg["nativeLibDir"], ffmpeg["binDir"], ffmpeg["libDir"],
+                ffmpeg["abi"], pyTempDir.absolutePath, File(filesDir, "sessions").absolutePath
+            )
         }
-        val module = Python.getInstance().getModule("android_backend")
-        val ffmpeg = prepareFFmpegRuntime()
-        val pyTempDir = File(cacheDir, "pytmp")
-        if (!pyTempDir.exists()) pyTempDir.mkdirs()
-        module.callAttr(
-            "initialize",
-            ffmpeg["nativeLibDir"], ffmpeg["binDir"], ffmpeg["libDir"],
-            ffmpeg["abi"], pyTempDir.absolutePath, File(filesDir, "sessions").absolutePath
-        )
     }
 
     private fun prepareFFmpegRuntime(): Map<String, Any> {
@@ -556,23 +563,7 @@ class DownloadForegroundService : Service() {
     }
 
     private fun createEntryPoint(binDir: File, nativeDir: File, linkName: String, targetName: String): String? {
-        val target = File(nativeDir, targetName)
-        if (!target.exists()) return null
-        val link = File(binDir, linkName)
-        try {
-            // Remove old or dangling links without java.nio.file (API 26+).
-            link.delete()
-            try {
-                Os.symlink(target.absolutePath, link.absolutePath)
-            } catch (e: Exception) {
-                target.copyTo(link, overwrite = true)
-                link.setExecutable(true, false)
-            }
-            return link.absolutePath
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to create FFmpeg entry point $linkName", e)
-            return null
-        }
+        return NativeMediaRuntime.executable(binDir, nativeDir, linkName, targetName)
     }
 
     private fun ffmpegExecutable(): String? {

@@ -1,7 +1,7 @@
 enum AppEdition { windows, android, iosWeb }
 
 class AppRelease {
-  static const version = '1.2.0';
+  static const version = '1.2.1';
   static const developer = 'Mohamed Fooda';
   static final github = Uri.parse('https://github.com/MTFOODA');
   static final linkedin =

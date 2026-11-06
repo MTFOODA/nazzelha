@@ -7,11 +7,16 @@ from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--runner', default='build/windows_release/runner/Release')
+parser.add_argument('--engine', default='build/release_engine/nazzelha-engine')
+parser.add_argument('--stage', default='build/release_stage/Nazzelha')
 args = parser.parse_args()
 root = Path(__file__).resolve().parent.parent
 source = root / args.runner
-engine = root / 'build/release_engine/nazzelha-engine'
-stage = root / 'build/release_stage/Nazzelha'
+engine = root / args.engine
+stage = root / args.stage
+build_root = (root / 'build').resolve()
+if not stage.resolve().is_relative_to(build_root):
+    raise SystemExit('The packaging stage must stay inside the project build directory.')
 if not (source / 'nazzelha.exe').is_file() or not (engine / 'nazzelha-engine.exe').is_file():
     raise SystemExit('Build the release runner and portable engine first.')
 stage.mkdir(parents=True, exist_ok=True)

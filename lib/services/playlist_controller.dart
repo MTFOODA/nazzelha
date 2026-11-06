@@ -7,9 +7,11 @@ import 'python_service.dart';
 import 'runtime_platform.dart';
 
 class PlaylistController extends ChangeNotifier {
+  static int _lastJobTimestamp = 0;
   static const prefsKey = 'youtube_playlist_job';
   static const historyKey = 'youtube_playlist_history';
   static const dismissedKey = 'youtube_playlist_dismissed';
+  static const clearedSelectionKey = 'youtube_playlist_selection_cleared';
   final PythonService python;
   Map<String, dynamic>? job;
   final List<Map<String, dynamic>> _history = [];
@@ -19,7 +21,8 @@ class PlaylistController extends ChangeNotifier {
   bool _stop = false,
       _disposed = false,
       _polling = false,
-      _editingNative = false;
+      _editingNative = false,
+      _selectionCleared = false;
   int _nativeEpoch = 0;
   Timer? _timer;
   SharedPreferences? _prefs;
@@ -38,6 +41,8 @@ class PlaylistController extends ChangeNotifier {
   bool get running => job?['status'] == 'running';
   bool get anyRunning => _history.any((j) => j['status'] == 'running');
   bool get canStart => !anyRunning && !loading && !python.isBusy;
+  bool get canClearCurrent =>
+      job != null && !running && !anyRunning && !loading && !_editingNative;
   int get completed => entries.where((e) => e['status'] == 'completed').length;
   bool get hasRemaining => entries
       .any((e) => e['status'] != 'completed' && e['unavailable'] != true);
@@ -48,6 +53,12 @@ class PlaylistController extends ChangeNotifier {
           .any((e) => e['file'] != null || e['status'] == 'completed');
   static String entryKey(Map entry) =>
       entry['key']?.toString() ?? '${entry['index']}:${entry['id']}';
+
+  static String _newJobId() {
+    final now = DateTime.now().microsecondsSinceEpoch;
+    _lastJobTimestamp = now > _lastJobTimestamp ? now : _lastJobTimestamp + 1;
+    return 'playlist_$_lastJobTimestamp';
+  }
 
   void _normalize(Map<String, dynamic> value) {
     value.putIfAbsent('createdAt', () => DateTime.now().toIso8601String());
@@ -74,6 +85,7 @@ class PlaylistController extends ChangeNotifier {
 
   Future<void> load() async {
     _prefs = await SharedPreferences.getInstance();
+    _selectionCleared = _prefs?.getBool(clearedSelectionKey) ?? false;
     _dismissed.addAll(_prefs?.getStringList(dismissedKey) ?? []);
     try {
       for (final saved
@@ -81,7 +93,7 @@ class PlaylistController extends ChangeNotifier {
         _remember(Map<String, dynamic>.from(saved as Map));
       }
       final raw = _prefs?.getString(prefsKey);
-      if (raw != null) {
+      if (raw != null && !_selectionCleared) {
         final previous = Map<String, dynamic>.from(jsonDecode(raw));
         if (!_dismissed.contains(previous['id'])) {
           final existing = _history.where((j) => j['id'] == previous['id']);
@@ -126,7 +138,7 @@ class PlaylistController extends ChangeNotifier {
           }
         }
       }
-      job ??= _history.isEmpty ? null : _history.last;
+      if (!_selectionCleared) job ??= _history.isEmpty ? null : _history.last;
     } catch (e) {
       error = _message(e);
     }
@@ -150,7 +162,9 @@ class PlaylistController extends ChangeNotifier {
           native != null &&
           !_dismissed.contains(native['id'])) {
         _remember(native);
-        if (job == null || native['id'] == job!['id']) job = native;
+        if (!_selectionCleared && (job == null || native['id'] == job!['id'])) {
+          job = native;
+        }
         _changed();
       }
     } catch (e) {
@@ -163,6 +177,7 @@ class PlaylistController extends ChangeNotifier {
   void select(String id) {
     final match = _history.where((j) => j['id'] == id);
     if (match.isEmpty) return;
+    _selectionCleared = false;
     job = match.first;
     error = null;
     _changed();
@@ -180,8 +195,9 @@ class PlaylistController extends ChangeNotifier {
     _changed();
     try {
       final result = await python.getPlaylist(url.trim());
+      _selectionCleared = false;
       job = {
-        'id': 'playlist_${DateTime.now().microsecondsSinceEpoch}',
+        'id': _newJobId(),
         'url': url.trim(),
         'title': result['title'],
         'folder': DownloadPaths.sanitizeFilename(
@@ -209,6 +225,17 @@ class PlaylistController extends ChangeNotifier {
     if (job == null || folderLocked) return;
     job!['folder'] = name;
     _changed();
+  }
+
+  /// Clear only the editor selection. History, saved files and browser transfers stay available.
+  bool clearCurrent() {
+    if (!canClearCurrent) return false;
+    _selectionCleared = true;
+    _nativeEpoch++; // Ignore a poll started before the user cleared the page.
+    job = null;
+    error = null;
+    _changed();
+    return true;
   }
 
   Future<void> start() => _run();
@@ -368,6 +395,7 @@ class PlaylistController extends ChangeNotifier {
     if (_disposed) return;
     if (job != null) _remember(job!);
     if (persist) {
+      unawaited(_prefs?.setBool(clearedSelectionKey, _selectionCleared));
       if (job != null) {
         unawaited(_prefs?.setString(prefsKey, jsonEncode(job)));
       } else {

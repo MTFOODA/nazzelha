@@ -16,7 +16,6 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.provider.DocumentsContract
-import android.system.Os
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import android.util.Log
@@ -519,7 +518,7 @@ class MainActivity : FlutterActivity() {
         )
     }
 
-    private fun initializePython(): Map<String, Any?> {
+    private fun initializePython(): Map<String, Any?> = synchronized(NativeMediaRuntime.initializationLock) {
         if (!Python.isStarted()) {
             Log.i(TAG, "Starting Chaquopy Python runtime")
             Python.start(AndroidPlatform(this))
@@ -576,7 +575,7 @@ class MainActivity : FlutterActivity() {
             Log.w(TAG, "Runtime diagnostics failed: ${e.message}")
         }
 
-        return jsonToMap(jsonStr)
+        jsonToMap(jsonStr)
     }
 
     /**
@@ -670,28 +669,7 @@ class MainActivity : FlutterActivity() {
      * it executable (works on older devices).
      */
     private fun createEntryPoint(binDir: File, nativeDir: File, linkName: String, targetName: String): String? {
-        val target = File(nativeDir, targetName)
-        if (!target.exists()) {
-            Log.w(TAG, "$targetName not found in $nativeDir")
-            return null
-        }
-        val link = File(binDir, linkName)
-        try {
-            // File.delete also removes dangling symlinks left by an app update.
-            // android.system.Os is available on API 21; java.nio.file needs 26.
-            link.delete()
-            try {
-                Os.symlink(target.absolutePath, link.absolutePath)
-            } catch (e: Exception) {
-                Log.w(TAG, "Symlink creation failed for $linkName, falling back to copy", e)
-                target.copyTo(link, overwrite = true)
-                link.setExecutable(true, false)
-            }
-            return link.absolutePath
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to create FFmpeg entry point $linkName", e)
-            return null
-        }
+        return NativeMediaRuntime.executable(binDir, nativeDir, linkName, targetName)
     }
 
     private fun getQualities(url: String, platform: String): Map<String, Any?> {

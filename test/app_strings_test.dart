@@ -3,6 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nazzelha/l10n/app_strings.dart';
 
 void main() {
+  test('missing local YouTube runtime is not a publisher restriction', () {
+    const message =
+        'The built-in YouTube JavaScript engine could not start. Please restart the app or update to the latest version.';
+    expect(const AppStrings(Locale('en')).errorMessage(message), message);
+    final translated = const AppStrings(Locale('ar')).errorMessage(message);
+    expect(translated, contains('محرك تنزيل يوتيوب'));
+    expect(translated, isNot(contains('ناشر')));
+  });
   test('hosted YouTube challenge is distinct from publisher restrictions', () {
     const message =
         'YouTube is blocking requests from the hosted download service. Use the Android or Windows app for this link.';

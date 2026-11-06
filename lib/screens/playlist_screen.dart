@@ -37,7 +37,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     if (id != _jobId) {
       _jobId = id;
       _folder.text = c.folder;
-      if (c.job != null) _url.text = c.job!['url']?.toString() ?? _url.text;
+      _url.text = c.job?['url']?.toString() ?? '';
     } else if (c.running && _folder.text != c.folder) {
       _folder.text = c.folder;
     }
@@ -122,6 +122,33 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                                                   .playlist_add_check_rounded,
                                               label: t('Extract videos',
                                                   'استخراج الفيديوهات')),
+                                          if (c.job != null) ...[
+                                            const SizedBox(height: 10),
+                                            AppActionButton(
+                                                key: const ValueKey(
+                                                    'playlist-clear'),
+                                                outlined: true,
+                                                icon: Icons.clear_all_rounded,
+                                                label: t('Clear page',
+                                                    'تفريغ الصفحة'),
+                                                onPressed: c.canClearCurrent
+                                                    ? () {
+                                                        if (!c.clearCurrent()) {
+                                                          return;
+                                                        }
+                                                        _url.clear();
+                                                        _folder.clear();
+                                                        ScaffoldMessenger.of(
+                                                                context)
+                                                            .showSnackBar(
+                                                          SnackBar(
+                                                              content: Text(t(
+                                                                  'Page cleared. Files and history are kept.',
+                                                                  'تم تفريغ الصفحة. الملفات والسجل محفوظان.'))),
+                                                        );
+                                                      }
+                                                    : null),
+                                          ],
                                         ]))),
                           ],
                           if (c.error != null)

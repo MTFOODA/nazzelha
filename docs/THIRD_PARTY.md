@@ -20,3 +20,10 @@ Flutter's in-app license registry includes package notices. The portable
 backend preserves package metadata and available license files under `_internal`.
 
 Build and dependency scripts are available in the matching GitHub source tag.
+
+The Android YouTube runtime also includes QuickJS-NG 0.18.0 (MIT),
+built from upstream commit `d7215b0ad3fc2c562e8317fd9bca058fd4863804` for the
+three supported ABIs. Its license is packaged in APK assets at
+`licenses/QUICKJS-NG.txt`. The matching yt-dlp-ejs 0.8.0 package retains its
+Unlicense and dependency notices. See [the Android runtime build and
+verification notes](ANDROID_YOUTUBE_RUNTIME.md).

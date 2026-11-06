@@ -11,6 +11,7 @@ root = Path(__file__).resolve().parent.parent
 flutter = os.environ.get('FLUTTER_BIN') or shutil.which('flutter')
 if not flutter:
     raise SystemExit('Put Flutter on PATH or set FLUTTER_BIN.')
+subprocess.run([sys.executable, str(root / 'tool/prepare_android_javascript.py')], cwd=root, check=True)
 subprocess.run([flutter, 'build', 'apk', '--release', '--config-only', '--no-pub'], cwd=root, check=True)
 # Keep Flutter's Windows paths semantically unchanged while satisfying Android
 # lint's property-file escaping check (the drive colon must be escaped too).

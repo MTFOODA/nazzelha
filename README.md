@@ -13,7 +13,9 @@ and [actual simulator verification](docs/verification-ios-preview.json).
 - Download media from supported sites such as YouTube, Facebook, Instagram, and TikTok
 - Independent quality selection per download card and progress updates
 - Playlist history with downloaded/remaining counts, individual resume/removal, and direct folder opening
+- Clear the playlist page in one action while keeping downloads and history, including after reopening
 - Native Android integration via Chaquopy and bundled FFmpeg
+- Packaged Android QuickJS-NG and matching EJS solver for full yt-dlp YouTube client support
 - Windows desktop support with a local Python backend
 - YouTube playlists with a chosen folder name, best-quality downloads, and Android background execution
 - Arabic/English, light/dark themes, adaptive navigation, and playlist history

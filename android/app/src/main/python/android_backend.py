@@ -14,6 +14,7 @@ Java collections that Flutter's MethodChannel can serialize.
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import tempfile
@@ -25,6 +26,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from media_core import extraction_options, extract_media, extract_playlist, final_filepath, PublicMediaUnavailable, video_qualities
 from media_core import configure_cookie_directory, configure_auth, auth_status
+from android_javascript import AndroidJavaScriptRuntime
 
 try:
     import yt_dlp
@@ -36,6 +38,7 @@ except ImportError:
 _FFMPEG_BIN_DIR: Optional[str] = None   # directory containing "ffmpeg"/"ffprobe"
 _FFMPEG_LIB_DIR: Optional[str] = None   # directory containing libav*.so
 _ANDROID_ABI: str = "unknown"
+_JAVASCRIPT_RUNTIME = AndroidJavaScriptRuntime()
 
 
 def _configure_ffmpeg_environment() -> None:
@@ -284,6 +287,8 @@ def initialize(native_lib_dir: str = "", ffmpeg_bin_dir: str = "",
 
         _configure_ffmpeg_environment()
 
+        javascript_check = _JAVASCRIPT_RUNTIME.configure(native_lib_dir)
+
         # Diagnostics for the Android logcat (never surfaced in the UI).
         expected_ffmpeg = os.path.join(ffmpeg_bin_dir, "ffmpeg") if ffmpeg_bin_dir else ""
         ffmpeg_check = _verify_ffmpeg(expected_ffmpeg) if expected_ffmpeg else {
@@ -303,6 +308,7 @@ def initialize(native_lib_dir: str = "", ffmpeg_bin_dir: str = "",
             "ffmpeg_run_ok": ffmpeg_check["run_ok"],
             "ffmpeg_version": ffmpeg_check["version_line"],
             "ffmpeg_error": ffmpeg_check["error"],
+            "youtube_javascript": javascript_check,
         }
 
         return json.dumps({
@@ -484,7 +490,7 @@ def _sanitize(text: str) -> str:
     low = text.lower()
     if any(marker in low for marker in _SECRET_MARKERS):
         return "[line redacted: may contain credentials]"
-    return text
+    return re.sub(r'(https?://[^\s?]+)\?[^\s]+', r'\1?<redacted>', text)
 
 
 def runtime_diagnostics() -> Dict[str, Any]:
@@ -506,6 +512,7 @@ def runtime_diagnostics() -> Dict[str, Any]:
         "yt_dlp_version": getattr(yt_dlp.version, "__version__", "unknown"),
         "yt_dlp_module_path": getattr(yt_dlp, "__file__", ""),
         "optional_dependencies": deps,
+        "youtube_javascript": dict(_JAVASCRIPT_RUNTIME.diagnostics),
     }
 
 
@@ -664,9 +671,12 @@ class _CaptureLogger:
 
     def debug(self, msg):
         try:
-            self._lines.append(_sanitize(str(msg))[:240])
+            safe = _sanitize(str(msg))[:240]
+            self._lines.append(safe)
             if len(self._lines) > self._capacity:
                 self._lines.pop(0)
+            if any(marker in safe for marker in ('[jsc', 'JS runtimes:', 'JS Challenge Providers:')):
+                _diag_log(safe)
         except Exception:
             pass
 
@@ -1005,6 +1015,9 @@ def get_qualities(url: str, platform: str = "youtube") -> str:
             "error": "yt-dlp is not installed. Please check the Chaquopy pip configuration."
         })
 
+    if platform.lower() in ('youtube', 'youtu.be') and not _JAVASCRIPT_RUNTIME.available:
+        return json.dumps(_JAVASCRIPT_RUNTIME.failure())
+
     # TikTok uses its own extraction cascade to get past the intermittent
     # anti-bot "rehydration" page. All other platforms keep the standard path.
     if _is_tiktok(platform, url):
@@ -1235,6 +1248,9 @@ def download_video(url: str, platform: str, quality: int, output_path: str,
             "error": "yt-dlp is not installed. Please check the Chaquopy pip configuration."
         })
 
+    if platform.lower() in ('youtube', 'youtu.be') and not _JAVASCRIPT_RUNTIME.available:
+        return json.dumps(_JAVASCRIPT_RUNTIME.failure())
+
     # TikTok downloads use their own cascade (see _extract_tiktok) so an
     # intermittent anti-bot page during re-extraction does not fail the
     # download. All other platforms keep the standard path below.
@@ -1267,6 +1283,7 @@ def download_video(url: str, platform: str, quality: int, output_path: str,
                      else "Download finished but the output file is missing or empty."
         })
 
+    logger = _CaptureLogger()
     try:
         # Ensure output directory exists
         output_dir = Path(output_path)
@@ -1274,6 +1291,7 @@ def download_video(url: str, platform: str, quality: int, output_path: str,
 
         # Configure download options based on platform and mode
         ydl_opts = _get_yt_dlp_opts(platform, quality, output_dir, mode=mode)
+        ydl_opts['logger'] = logger
 
         # Stream REAL progress from yt-dlp to Flutter.
         hook_state: Dict[str, Any] = {"last_percent": -1, "last_time": 0.0}
@@ -1317,7 +1335,7 @@ def download_video(url: str, platform: str, quality: int, output_path: str,
         # pass phase="download" so bare HTTP statuses are attributed to the
         # media transfer, which is where they occur in this call.
         code = classify_error(str(e), phase="download")
-        return json.dumps(_failure_payload(e, code, "download", None,
+        return json.dumps(_failure_payload(e, code, "download", logger,
                                            {"error": _USER_MESSAGES[code]}))
 
     except Exception as e:
@@ -1342,7 +1360,7 @@ def download_video(url: str, platform: str, quality: int, output_path: str,
             })
 
         return json.dumps(_failure_payload(
-            e, code, "download", None,
+            e, code, "download", logger,
             {"error": f"Download failed: {_USER_MESSAGES[code]}"}))
 
 
@@ -1409,7 +1427,8 @@ def _get_yt_dlp_opts(platform: str, quality: int, output_dir: Path,
 
     # Platform-specific configurations
     if platform in ("youtube", "youtu.be"):
-        pass  # YouTube works with defaults
+        base_opts.update(_JAVASCRIPT_RUNTIME.options())
+        base_opts['verbose'] = True  # Bounded, sanitized private logger; never shown in the card.
 
     elif platform in ("facebook", "fb.watch"):
         base_opts.update({

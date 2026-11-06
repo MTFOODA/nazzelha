@@ -78,6 +78,8 @@ class AppStrings {
   }
 
   static const _labels = <String, String>{
+    'The built-in YouTube JavaScript engine could not start. Please restart the app or update to the latest version.':
+        'تعذّر تشغيل محرك تنزيل يوتيوب المدمج. أعد تشغيل التطبيق أو حدّثه لآخر إصدار.',
     'The free web edition supports files up to 96 MB. Choose a lower quality or use the app.':
         'نسخة الويب المجانية تدعم الملفات حتى ٩٦ ميجابايت. اختر جودة أقل أو استخدم التطبيق.',
     'The free web edition allows about 4 minutes to prepare a video. Try a lower quality or use the app.':

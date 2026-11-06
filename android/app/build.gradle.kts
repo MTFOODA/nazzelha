@@ -90,6 +90,9 @@ chaquopy {
             // is ACTUALLY executed inside the APK via Chaquopy - the Windows
             // .venv requirements.txt pin does not affect Android.
             install("yt-dlp==2026.10.26")
+            // Must match the exact EJS version required by the yt-dlp pin.
+            // The Android QuickJS CLI is built by tool/prepare_android_javascript.py.
+            install("yt-dlp-ejs==0.8.0")
             // certifi is a pure-Python package that ships a complete Mozilla CA
             // bundle and is the ONE dependency yt-dlp prefers to use for TLS
             // verification. Chaquopy's embedded CPython does not inherit the

@@ -134,5 +134,26 @@ Apple signing and installation have not been verified.
 
 This preview uses the hosted engine with its 96 MiB/225-second limits and
 upstream YouTube hosting restrictions. It needs foreground execution. Keep the
-stable Android/Windows `v1.1.3` release as latest; publish iOS as a prerelease
+current stable Android/Windows release as latest; publish iOS as a prerelease
 with `make_latest: false` and never replace its existing native assets.
+
+## 1.2.1 playlist clearing and Android runtime repair
+
+Clear page empties the playlist editor while preserving downloaded files and
+playlist history. The cleared selection survives native polling and reopening;
+select a playlist from History to restore it. Clearing is disabled during an
+active playlist or extraction. The Arabic manual and HTML guide describe it.
+
+Android now bundles the matching EJS solver and a local QuickJS-NG executable
+for all three supported ABIs. Shared, atomic media initialization fixes an
+activity/service FFmpeg race. The user confirmed all six videos of the reported
+playlist downloaded on the signed 1.2.0 acceptance candidate on Android 17.
+1.2.1 retains that native engine and adds the Clear page interface. Details and
+artifact identity are in [runtime acceptance](ANDROID_YOUTUBE_RUNTIME.md).
+
+Flutter analysis is clean: 49 tests passed, two optional live tests skipped.
+Python backend tests: 31 passed. Cloudflare tests: eight passed. Actual Android
+7 acceptance and new release artifact checks are recorded in the accompanying
+verification report when complete; these unit tests alone do not establish
+execution on every supported Android version. iOS remains a separate unsigned
+preview requiring personal signing and physical-device testing.

@@ -1,9 +1,10 @@
-Nazzelha 1.1.3 — Mohamed Fooda
+Nazzelha 1.2.1 — Mohamed Fooda
 
 Windows: extract the entire ZIP to a folder, then open nazzelha.exe.
 Keep the backend, data and DLL files beside the executable.
 Python, Node and FFmpeg are bundled; no separate Python install is needed.
 Saved media: your Downloads/Nazzelha folder.
+Playlist: Clear page resets the editor after downloading, preserving files and history.
 
 Website: https://nazzelha.mohamed-fooda-mtf.workers.dev/
 GitHub: https://github.com/MTFOODA
@@ -19,5 +20,6 @@ be updated in place using this certificate; back up app data before replacing it
 
 iPhone/iPad: the web edition runs in Safari. Add to Home Screen if desired.
 There is no native IPA in this release.
+An unsigned iOS preview is available separately; it needs personal signing and physical-device verification.
 
 See licenses/THIRD_PARTY.md and backend/tools/ for bundled software licenses.
