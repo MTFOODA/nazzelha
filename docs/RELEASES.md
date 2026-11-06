@@ -117,3 +117,22 @@ the GitHub credential in memory from Git Credential Manager and never prints
 or uploads it. Commit and push the reviewed source first. An already-public
 version's assets are not overwritten. This helper is currently prepared for
 tag `v1.1.3`; review the version and notes before reusing it for another release.
+
+## iOS 1.2.0 preview (2026-11-06)
+
+The separate prerelease provides an unsigned ARM64 device IPA targeting iOS 15+
+and a debug simulator app. The device app is a Release/AOT build, not the
+simulator binary repackaged as an IPA. Personal signing is required; the free
+Sideloadly route is documented in [the iOS guide](IOS_PREVIEW_AR.md).
+
+[CI run 42134549733](https://github.com/MTFOODA/nazzelha/actions/runs/42134549733)
+built both apps, installed and launched the full app on an iPhone 17 Pro / iOS
+26.5 simulator, and passed the iOS HTTP/Unicode-file/history integration test.
+The transfer test used 4,099 fixture bytes, not a real downloaded video. Flutter
+analysis and 47 tests passed; two optional live tests were skipped. Physical
+Apple signing and installation have not been verified.
+
+This preview uses the hosted engine with its 96 MiB/225-second limits and
+upstream YouTube hosting restrictions. It needs foreground execution. Keep the
+stable Android/Windows `v1.1.3` release as latest; publish iOS as a prerelease
+with `make_latest: false` and never replace its existing native assets.

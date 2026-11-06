@@ -1,0 +1,55 @@
+{
+  "date_utc": "2026-11-06",
+  "version": "1.2.0+6",
+  "source_commit": "05cff50935f0119400fe8f56db8f901037d9fd43",
+  "ci_url": "https://github.com/MTFOODA/nazzelha/actions/runs/42134549733",
+  "ci_conclusion": "success",
+  "artifact_sha256": "6710d9fd5e33540e0944e94be4d095b038596b44ab1127c7499588c1fff34830",
+  "device_ipa": {
+    "architecture": "arm64",
+    "minimum_ios": "15.0",
+    "apple_signed": false,
+    "physical_iphone_install_verified": false
+  },
+  "simulator_launch": {
+    "launched": true,
+    "process_alive": true,
+    "bundle": "com.mohamedfooda.nazzelha",
+    "version": "1.2.0",
+    "minimum_ios": "15.0",
+    "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+    "device_type": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro",
+    "screenshot": "ios-app.png"
+  },
+  "ios_integration": {
+    "passed": true,
+    "test": "real iOS HTTP and Unicode disk transfer",
+    "fixture_bytes_are_not_a_real_video": true,
+    "bytes_verified": 4099,
+    "history_restored": true
+  },
+  "flutter": {
+    "analyzer": "clean",
+    "passed": 47,
+    "optional_skipped": 2
+  },
+  "python_tests_passed": 26,
+  "cloudflare_tests_passed": 8,
+  "edge_transfer_test": "byte reconstruction, Arabic ZIP folder, completeness: PASS",
+  "release_asset_sha256": {
+    "Nazzelha-iOS-Unsigned.ipa": "bfc60bd524d4aa5f7d4c30c99bc1fc8edcdff4bcad6f0c246ac24cf42555029a",
+    "Nazzelha-iOS-Simulator.zip": "a251a211b0108b1625b011356799c4250afb56caa37b875b6c1b62e3b93e3278"
+  },
+  "limits": {
+    "engine": "hosted",
+    "max_file_mib": 96,
+    "prepare_seconds": 225,
+    "foreground_required": true,
+    "youtube_hosting_block_resolved": false
+  },
+  "visual_review": {
+    "screenshot": "media/ios-preview.png",
+    "reviewed": true,
+    "observations": "Initial queue, preview limits, navigation and safe areas visible without clipped content."
+  }
+}
