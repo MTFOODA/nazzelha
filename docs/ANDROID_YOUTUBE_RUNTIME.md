@@ -101,4 +101,8 @@ to verify clearing and file retention without downloading real YouTube media.
 
 Minimum supported Android API remains 24. A minimum SDK declaration and native
 ELF inspection alone do not prove execution on every device or Android release;
-check the release verification report for actual emulator/device evidence.
+check [the release verification report](verification-1.2.1.json) for actual
+emulator/device evidence. The API 24/x86_64 CI run passed native JavaScript/EJS
+and FFmpeg startup plus the clear/poll/reload integration test, retaining
+history and its completed fixture file. The final signed 1.2.1 APK also updated
+the physical Android 17 phone without clearing data and passed native startup.

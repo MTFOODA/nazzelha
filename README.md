@@ -52,6 +52,10 @@ folder naming, background execution, history and individual controls at 1.75×
 speed. The separate illustrated walkthrough uses labeled demonstration data.
 Actual results are in [the verification summary](docs/verification-1.1.3.json).
 
+The newer [1.2.1 verification report](docs/verification-1.2.1.json) covers the
+playlist Clear page control and Android JavaScript runtime repair. The user
+confirmed all six videos of the previously failing playlist on their phone.
+
 ## Prerequisites
 
 - Flutter SDK (current project validated with Flutter 3.47.x)

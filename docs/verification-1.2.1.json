@@ -1,0 +1,70 @@
+{
+  "tested_on": "2026-11-06",
+  "version": "1.2.1+7",
+  "application_source_commit": "f95326d078de00796fcc1f27c429999763b86ec7",
+  "flutter": {"analyzer": "clean", "tests_passed": 49, "optional_tests_skipped": 2},
+  "python_tests_passed": 31,
+  "cloudflare_tests_passed": 8,
+  "clear_page": {
+    "widget_and_controller_tests": "passed",
+    "keeps_downloaded_files": true,
+    "keeps_playlist_history": true,
+    "empty_selection_persists_after_reload": true,
+    "disabled_during_active_playlist": true,
+    "physical_phone_after_clear": "User confirmed fields were cleared; read-only screenshot showed an empty URL field and no folder editor. Screenshot remains private."
+  },
+  "android_release": {
+    "bytes": 92682908,
+    "sha256": "7fed954df121ace19d145218c981fa4ce59f37c121b16f31611545f8d8c10b54",
+    "minimum_api": 24,
+    "certificate_sha256": "18e10d4f4200ab4d54c82cf7c7e940ff9465488aee05240978d0610011c7d045",
+    "signature_and_zip_crc": "passed",
+    "native_abis": ["armeabi-v7a", "arm64-v8a", "x86_64"],
+    "native_and_zip_16k_alignment": "passed",
+    "quickjs_executables_and_ejs_scripts_present": true
+  },
+  "physical_phone": {
+    "model": "Xiaomi 15T Pro",
+    "os": "HyperOS 3 / Android 17 / API 37",
+    "updated_to_1_2_1_without_clearing_data": true,
+    "ffmpeg_run_ok": true,
+    "javascript_available": true,
+    "javascript_self_check": 42,
+    "reported_playlist": "PLIYBbP1D1SXKDCLEUu2Bdm2w2sfWEk4xl",
+    "full_playlist_acceptance": "User explicitly confirmed 6 of 6 downloaded on the signed 1.2.0+6 candidate with the same native engine.",
+    "accepted_candidate_sha256": "f9c9710adb21cff72f67a15a16688f7a25833ca95decfdbb11dc578e89d55039",
+    "all_six_final_events_in_private_capture": false
+  },
+  "windows": {
+    "bytes": 109614375,
+    "sha256": "58f1edb905f998eee9820b8395e154e6296e6b8893eb64b329b15a45c3442612",
+    "zip_crc": "passed",
+    "portable_engine_handshake": "passed",
+    "bundled_node_ejs_and_ffmpeg": "passed",
+    "full_runner_and_engine_child_startup": "passed",
+    "empty_path_and_isolated_appdata": true
+  },
+  "web": {
+    "url": "https://nazzelha.mohamed-fooda-mtf.workers.dev/",
+    "production_javascript_contains_clear_page_and_1_2_1": true,
+    "edge_bytes_arabic_zip_completeness": "passed",
+    "youtube_hosting_network_restrictions_removed": false
+  },
+  "android_7_ci": {
+    "url": "https://github.com/MTFOODA/nazzelha/actions/runs/42240095028",
+    "status": "success",
+    "api": 24,
+    "abi": "x86_64",
+    "native_javascript_and_ffmpeg_startup": "passed",
+    "javascript_self_check": 42,
+    "native_polling_and_controller_reload_after_clear": "passed",
+    "history_and_fixture_file_retention": "passed",
+    "integration_test_fixture_is_not_real_media": true,
+    "real_youtube_download_in_ci": false
+  },
+  "ios": {
+    "physical_iphone_installation_verified": false,
+    "normal_download_button_added": false,
+    "unsigned_preview_requires_personal_signing": true
+  }
+}

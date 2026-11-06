@@ -154,6 +154,9 @@ artifact identity are in [runtime acceptance](ANDROID_YOUTUBE_RUNTIME.md).
 Flutter analysis is clean: 49 tests passed, two optional live tests skipped.
 Python backend tests: 31 passed. Cloudflare tests: eight passed. Actual Android
 7 acceptance and new release artifact checks are recorded in the accompanying
-verification report when complete; these unit tests alone do not establish
-execution on every supported Android version. iOS remains a separate unsigned
+[1.2.1 verification report](verification-1.2.1.json). The actual API 24 emulator
+passed JavaScript/EJS/FFmpeg startup and the native clear/poll/reload test with
+history and a completed fixture file retained. The final signed APK updated
+the physical Android 17 phone successfully without clearing data. These checks
+do not establish execution on every supported Android version. iOS remains a separate unsigned
 preview requiring personal signing and physical-device testing.
