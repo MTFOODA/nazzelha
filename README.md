@@ -21,7 +21,7 @@ Nazzelha is a Flutter media downloader for video content from supported platform
 | Android | Android 7 / API 24 and later; universal ARM, ARM64 and x86_64 APK. Clean installation and upgrade tested on Android 7 and Android 17 (4 KB and 16 KB pages), not every intermediate OS separately. |
 | Windows x64 | Portable app with the local Python, FFmpeg and Node engine bundled. |
 | Public web | Cloudflare website with a stateless Python API on Vercel. Tested in Edge; no local server required for visitors. |
-| iPhone / iPad | Web edition only; no native IPA. |
+| iPhone / iPad | Native iOS 15+ preview using the hosted engine. Unsigned Release IPA needs personal signing (for example, Sideloadly); physical-device installation remains to be verified. The web edition is also available. |
 | Linux / macOS | Native builds are not configured and verified. |
 
 Android background downloading belongs to the installed application's foreground
@@ -104,6 +104,8 @@ See the Python backend notes in [`python_backend/README.md`](python_backend/READ
 - [Arabic manual: every button, workflow and platform limit](docs/USER_GUIDE_AR.md)
 - [Android installation, integrity and compatibility evidence](docs/ANDROID_INSTALLATION.md)
 - [Release build and publication instructions](docs/RELEASES.md)
+- [iOS preview, free signing and physical-device checklist](docs/IOS_PREVIEW_AR.md)
+- [Why a link can work natively but fail on the public website](docs/WEB_TROUBLESHOOTING_AR.md)
 - [Workspace cleanup scope and retained files](docs/CLEANUP.md)
 
 ## Limitations
@@ -111,7 +113,7 @@ See the Python backend notes in [`python_backend/README.md`](python_backend/READ
 - Site availability and media access remain subject to the target platform's own restrictions, bot protection, login requirements, and regional access rules.
 - Source-based desktop builds use the local Python environment. Published Windows ZIPs include Python, FFmpeg and Node.
 - The public web edition uses the isolated API described in [web deployment](docs/WEB_DEPLOYMENT.md). The development bridge remains local only.
-- iPhone/iPad use the web edition. This release does not include a native iOS app. Linux and macOS native builds are unverified.
+- The iOS preview uses the hosted engine, with its 96 MiB file and 225-second preparation/transfer limits. It requires foreground execution and does not include Android's background service or a local Python/FFmpeg engine. Linux and macOS native builds are unverified.
 
 ## Notes
 
@@ -132,7 +134,7 @@ Brand exports are derived from `assets/logo/nazzelha-v2.png`. Run `dart run tool
 
 ## Web and release distribution
 
-The header information icon opens Mohamed Fooda's developer page, GitHub and LinkedIn links, and edition downloads. Android APK and portable Windows ZIP assets are hosted on [GitHub Releases](https://github.com/MTFOODA/nazzelha/releases/latest). iPhone/iPad opens the web edition.
+The header information icon opens Mohamed Fooda's developer page, GitHub and LinkedIn links, and edition downloads. Android APK and portable Windows ZIP assets are hosted on [GitHub Releases](https://github.com/MTFOODA/nazzelha/releases/latest). The separate [iOS preview guide](docs/IOS_PREVIEW_AR.md) covers unsigned IPA builds and personal signing; the latest stable Android/Windows release remains separate.
 
 See [deployment and free-hosting limits](docs/WEB_DEPLOYMENT.md) and [release build instructions](docs/RELEASES.md).
 
