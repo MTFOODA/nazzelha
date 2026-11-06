@@ -59,7 +59,7 @@ def verify(apk, sdk):
             names = [n for n in archive.namelist() if n.startswith('lib/' + abi + '/') and n.endswith('.so')]
             if not names:
                 raise ValueError('Missing ABI: ' + abi)
-            for required in ('libflutter.so', 'libapp.so', 'libffmpeg.so', 'libffprobe.so', 'libffmpeg.zip.so'):
+            for required in ('libflutter.so', 'libapp.so', 'libffmpeg.so', 'libffprobe.so', 'libffmpeg.zip.so', 'libqjs.so'):
                 if 'lib/' + abi + '/' + required not in names:
                     raise ValueError('Missing ' + abi + '/' + required)
             libraries[abi] = len(names)
@@ -82,10 +82,19 @@ def verify(apk, sdk):
                         ffmpeg_libraries[abi] = count
                     continue
                 check_elf(data, name, abi)
+        from prepare_android_javascript import ARCHITECTURES, validate_elf
+        for abi, machine in ARCHITECTURES.items():
+            validate_elf(archive.read('lib/' + abi + '/libqjs.so'), machine)
+        with zipfile.ZipFile(io.BytesIO(archive.read('assets/chaquopy/requirements-common.imy'))) as packages:
+            scripts = [name for name in packages.namelist()
+                       if name.startswith('yt_dlp_ejs/') and name.endswith('.js')]
+            if not scripts:
+                raise ValueError('The packaged YouTube EJS scripts are missing.')
     return dict(package=package[1], version=package[3], version_code=int(package[2]), min_sdk=minimum,
                 bytes=apk.stat().st_size, sha256=hashlib.file_digest(apk.open('rb'), 'sha256').hexdigest(),
                 certificate_sha256=certificate, native_libraries=libraries,
-                packed_ffmpeg_libraries=ffmpeg_libraries, zip_alignment_16k=True)
+                packed_ffmpeg_libraries=ffmpeg_libraries, zip_alignment_16k=True,
+                youtube_javascript_abis=sorted(ARCHITECTURES), ejs_scripts_present=True)
 
 
 if __name__ == '__main__':

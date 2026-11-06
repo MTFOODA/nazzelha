@@ -34,7 +34,7 @@ source, count = re.subn(pattern, lambda match: '' if any(
 registrant.write_text(source, encoding='utf-8')
 print('Release registrant excludes development-only plugins.', flush=True)
 wrapper = root / 'android/gradlew.bat'
-subprocess.run([str(wrapper), 'assembleRelease',
+subprocess.run([str(wrapper), ':app:assembleRelease',
     '-Ptarget-platform=android-arm,android-arm64,android-x64', '-Ptarget=lib/main.dart',
     '-Pdart-obfuscation=false', '-Ptrack-widget-creation=false', '-Ptree-shake-icons=true'],
     cwd=root / 'android', check=True)
