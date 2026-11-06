@@ -6,6 +6,10 @@ Nazzelha is a Flutter media downloader for video content from supported platform
 
 ## Features
 
+[Unsigned iOS preview](https://github.com/MTFOODA/nazzelha/releases/tag/v1.2.0-ios-preview.1)
+requires personal signing; see the [Arabic iOS installation guide](docs/IOS_PREVIEW_AR.md)
+and [actual simulator verification](docs/verification-ios-preview.json).
+
 - Download media from supported sites such as YouTube, Facebook, Instagram, and TikTok
 - Independent quality selection per download card and progress updates
 - Playlist history with downloaded/remaining counts, individual resume/removal, and direct folder opening
